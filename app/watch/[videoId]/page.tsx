@@ -35,5 +35,5 @@ export default async function WatchPage({ params }: WatchPageProps) {
 
   const related = getRelatedVideos(catalog.videos, video);
 
-  return <WatchClient video={video} allVideos={[...related, ...catalog.videos]} />;
+  return <WatchClient video={video} allVideos={related} />;
 }

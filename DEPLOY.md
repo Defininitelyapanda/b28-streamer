@@ -46,7 +46,7 @@ After env vars are set, trigger sync once:
 Invoke-WebRequest -Uri "https://YOUR-APP.vercel.app/api/sync" -Headers @{ Authorization = "Bearer YOUR_CRON_SECRET" }
 ```
 
-Cron runs every 6 hours via `vercel.json`.
+Cron runs once daily at midnight UTC via `vercel.json` (Hobby-plan compatible).
 
 ## Deploy from CLI (alternative)
 
@@ -65,7 +65,3 @@ git push
 ```
 
 Vercel redeploys automatically on push to `main`.
-
-## Odoo Online integration
-
-To show the full app inside your Odoo website (iframe embed), see [ODOO.md](ODOO.md).

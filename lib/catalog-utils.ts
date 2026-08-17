@@ -82,14 +82,24 @@ export function getRowsFor(videos: CatalogVideo[], genreFilter: string): Content
 }
 
 export function getRelatedVideos(videos: CatalogVideo[], current: CatalogVideo, limit = 8) {
-  const sameGroup = videos.filter(
-    (v) => v.seriesGroup === current.seriesGroup && v.id !== current.id
-  );
-  const sameGenre = videos.filter(
-    (v) => v.genre === current.genre && v.id !== current.id && v.seriesGroup !== current.seriesGroup
-  );
-  return [...sameGroup, ...sameGenre, ...videos.filter((v) => v.id !== current.id)].slice(
-    0,
-    limit
-  );
+  const seen = new Set<string>([current.id]);
+  const result: CatalogVideo[] = [];
+
+  const pushUnique = (video: CatalogVideo) => {
+    if (seen.has(video.id)) return;
+    seen.add(video.id);
+    result.push(video);
+  };
+
+  for (const video of videos) {
+    if (video.seriesGroup === current.seriesGroup) pushUnique(video);
+  }
+  for (const video of videos) {
+    if (video.genre === current.genre) pushUnique(video);
+  }
+  for (const video of videos) {
+    pushUnique(video);
+  }
+
+  return result.slice(0, limit);
 }
