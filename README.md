@@ -67,6 +67,10 @@ This fetches all uploads from your YouTube channel and writes `data/catalog.json
 npm run deploy
 ```
 
+## Odoo Online
+
+Embed the live app in your Odoo website: see [ODOO.md](ODOO.md).
+
 Vercel Cron (configured in `vercel.json`) calls `/api/sync` every 6 hours.
 
 ### First sync on Vercel

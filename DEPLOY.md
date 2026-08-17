@@ -65,3 +65,7 @@ git push
 ```
 
 Vercel redeploys automatically on push to `main`.
+
+## Odoo Online integration
+
+To show the full app inside your Odoo website (iframe embed), see [ODOO.md](ODOO.md).
