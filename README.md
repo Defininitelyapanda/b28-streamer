@@ -51,13 +51,21 @@ This fetches all uploads from your YouTube channel and writes `data/catalog.json
 
 ## Deploy to Vercel
 
-1. Push this repo to GitHub.
-2. Go to [vercel.com/new](https://vercel.com/new) and import the repository.
-3. Add environment variables in **Project Settings → Environment Variables**:
+**Quick start:** See [DEPLOY.md](DEPLOY.md) for the full checklist.
+
+1. Open [vercel.com/new](https://vercel.com/new) and sign in with GitHub.
+2. Import **`Defininitelyapanda/b28-streamer`** (repo: [github.com/Defininitelyapanda/b28-streamer](https://github.com/Defininitelyapanda/b28-streamer)).
+3. Keep Next.js defaults and click **Deploy** — no env vars needed for first launch.
+4. Add environment variables in **Project Settings → Environment Variables** (optional):
    - `YOUTUBE_API_KEY`
    - `YOUTUBE_CHANNEL_ID`
    - `CRON_SECRET`
-4. Deploy.
+
+**CLI deploy** (after `npx vercel login`):
+
+```bash
+npm run deploy
+```
 
 Vercel Cron (configured in `vercel.json`) calls `/api/sync` every 6 hours.
 
