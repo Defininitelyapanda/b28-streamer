@@ -1,0 +1,34 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: b28-postgres
+    environment:
+      POSTGRES_USER: b28
+      POSTGRES_PASSWORD: b28
+      POSTGRES_DB: b28_oncodex
+    ports:
+      - "5434:5432"
+    volumes:
+      - b28_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U b28 -d b28_oncodex"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: b28-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - b28_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  b28_postgres_data:
+  b28_redis_data:

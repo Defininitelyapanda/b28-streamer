@@ -1,120 +1,56 @@
-# B28 Entertainment Streaming Platform
+# B28 Oncodex Monorepo
 
-Netflix-style streaming front-end for **B28 Entertainment** Kenyan films, powered by YouTube embeds and automatic channel sync.
+| App | Folder | URL |
+|---|---|---|
+| Streaming site | `frontend/` | http://localhost:3000 |
+| Admin dashboard | `backend/dashboard/` | http://localhost:3001 |
+| REST API | `backend/` | http://localhost:4000 |
 
-## Stack
+## Quick start
 
-- **Next.js 15** (App Router) + TypeScript
-- **Tailwind CSS** for styling
-- **YouTube Data API v3** for channel catalog sync
-- **Vercel** for hosting and Cron Jobs
-
-## Local development
-
-### Prerequisites
-
-- [Node.js 18+](https://nodejs.org/) and npm
-
-### Setup
-
-```bash
-cd a:\b28
+```powershell
+cd A:\b28
 npm install
-cp .env.example .env.local
+npm run db:up:docker
+npm run db:migrate
+npm run db:seed
+npm run dev:all
 ```
 
-Edit `.env.local`:
+Install app dependencies first if needed:
 
-```env
-YOUTUBE_API_KEY=your_google_cloud_api_key
-YOUTUBE_CHANNEL_ID=UCxxxxxxxxxxxxxxxx
-CRON_SECRET=your_random_secret_string
+```powershell
+npm install --prefix frontend
+npm install --prefix backend
+npm install --prefix backend/dashboard
 ```
 
-### Run dev server
+## Environment files
 
-```bash
-npm run dev
-```
+- `frontend/.env.local` — copy from `frontend/.env.example`
+- `backend/.env` — copy from `backend/.env.example`
+- `backend/dashboard/.env.local` — copy from `backend/dashboard/.env.example`
 
-Open [http://localhost:3000](http://localhost:3000)
+## Admin dashboard login
 
-The site works immediately with the seeded catalog in `data/catalog.json` (11 B28 titles).
+- URL: http://localhost:3001/login
+- Seed: `admin@b28.dev` / `Password123!`
 
-### Sync catalog from YouTube (local)
+## Catalog sync (backend → frontend)
 
-```bash
-npm run sync
-```
+The streaming site loads its film catalog from the API (`GET /api/v1/catalog`). Edit titles, genres, and visibility in the admin dashboard under **Films** — changes appear on http://localhost:3000 within about 30 seconds.
 
-This fetches all uploads from your YouTube channel and writes `data/catalog.json`.
+## Streamer / Filmmaker login
 
-## Deploy to Vercel
+- **Log in:** http://localhost:3000/login (email, phone OTP, or Google)
+- **Plans:** http://localhost:3000/offers (after login — monthly/annual premium or free with ads)
+- **Payment methods:** M-Pesa, PayPal, or card (linked on offers page; stored in backend)
+- **Test accounts:** `streamer.free@b28.dev` / `streamer.premium@b28.dev` / `filmmaker@b28.dev` — password `Password123!`
 
-**Quick start:** See [DEPLOY.md](DEPLOY.md) for the full checklist.
+Watch progress, watch-later list, and subscription status sync to the backend when logged in.
 
-1. Open [vercel.com/new](https://vercel.com/new) and sign in with GitHub.
-2. Import **`Defininitelyapanda/b28-streamer`** (repo: [github.com/Defininitelyapanda/b28-streamer](https://github.com/Defininitelyapanda/b28-streamer)).
-3. Keep Next.js defaults and click **Deploy** — no env vars needed for first launch.
-4. Add environment variables in **Project Settings → Environment Variables** (optional):
-   - `YOUTUBE_API_KEY`
-   - `YOUTUBE_CHANNEL_ID`
-   - `CRON_SECRET`
+## Docs
 
-**CLI deploy** (after `npx vercel login`):
-
-```bash
-npm run deploy
-```
-
-Vercel Cron (configured in `vercel.json`) calls `/api/sync` once daily at midnight UTC (Hobby-plan compatible).
-
-### First sync on Vercel
-
-After deploy, trigger a manual sync:
-
-```bash
-curl -H "Authorization: Bearer YOUR_CRON_SECRET" https://your-app.vercel.app/api/sync
-```
-
-**Note:** Vercel serverless functions have a read-only filesystem. Runtime sync updates an in-memory cache for that instance. For persistent catalog updates on Vercel, run `npm run sync` locally and commit the updated `data/catalog.json`, or upgrade to Vercel KV later.
-
-## Routes
-
-| Route | Description |
-|---|---|
-| `/` | Home — hero, continue watching, my list, genre rows |
-| `/browse` | Filter by genre, decade, film/trailer |
-| `/search?q=` | Search titles |
-| `/watch/[videoId]` | Full watch page with YouTube player |
-| `/api/catalog` | JSON catalog API |
-| `/api/sync` | YouTube channel sync (Cron-protected) |
-
-## YouTube API setup
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/).
-2. Create a project → enable **YouTube Data API v3**.
-3. Create an **API key** under Credentials.
-4. Find your channel ID: YouTube Studio → Settings → Channel → Advanced settings, or from your channel URL.
-
-## User features (browser localStorage)
-
-- **My List** — save titles from hero or watch page
-- **Continue Watching** — resume progress (saved every 5 seconds while playing)
-- **Watch History** — last 50 played titles
-
-## Project structure
-
-```
-app/           Next.js pages and API routes
-components/    UI components (hero, cards, player, browse)
-lib/           Catalog, YouTube sync, classification, watch history
-data/          catalog.json (seed + sync output)
-config/        Manual genre/series overrides
-scripts/       Local sync script
-b28 v2.html    Original prototype (reference only)
-```
-
-## Original prototype
-
-The single-file prototype [`b28 v2.html`](b28%20v2.html) is kept for reference. The Next.js app replaces it for production deployment.
+- [DEPLOY.md](DEPLOY.md) — Vercel (frontend root: `frontend/`)
+- [backend/README.md](backend/README.md) — API
+- [backend/dashboard/README.md](backend/dashboard/README.md) — Admin UI

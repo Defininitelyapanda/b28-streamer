@@ -12,7 +12,7 @@ Local build verified: `npm run build` passes.
    - If missing: **Adjust GitHub App Permissions** → allow access to `b28-streamer`
 4. Keep defaults:
    - Framework: **Next.js**
-   - Root Directory: `./`
+   - Root Directory: **`frontend`**
    - Build Command: `next build`
 5. Click **Deploy** (env vars optional for first launch)
 
@@ -51,7 +51,7 @@ Cron runs once daily at midnight UTC via `vercel.json` (Hobby-plan compatible).
 ## Deploy from CLI (alternative)
 
 ```powershell
-cd A:\b28
+cd A:\b28\frontend
 npx vercel login
 npx vercel --prod
 ```
