@@ -1,5 +1,9 @@
 node_modules
 dist
+src/main.js
+src/main.js.map
+src/main.bundle.js
+src/main.bundle.js.map
 .env
 .env.local
 coverage

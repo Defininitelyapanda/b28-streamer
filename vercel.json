@@ -15,7 +15,8 @@
     "backend": {
       "root": "backend",
       "framework": "nestjs",
-      "buildCommand": "npm run prisma:generate && npm run build && node scripts/vercel-postbuild.js"
+      "installCommand": "npm install --include=dev && npx prisma generate",
+      "buildCommand": "node scripts/vercel-bundle.js && node scripts/vercel-postbuild.js"
     }
   },
   "crons": [
