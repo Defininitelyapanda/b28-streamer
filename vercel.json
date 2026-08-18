@@ -15,7 +15,7 @@
     "backend": {
       "root": "backend",
       "framework": "nestjs",
-      "buildCommand": "npm run prisma:generate && npm run build"
+      "buildCommand": "npm run prisma:generate && npm run build && ([ -z \"$DATABASE_URL\" ] || npm run prisma:migrate:deploy)"
     }
   },
   "crons": [

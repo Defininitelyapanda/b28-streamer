@@ -11,10 +11,19 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>('API_PORT', 4000);
-  const corsOrigin = configService.get<string>('CORS_ORIGIN', 'http://localhost:3000');
-  const corsOrigins = corsOrigin.split(',').map((o) => o.trim());
-
-  app.enableCors({ origin: corsOrigins, credentials: true });
+  const corsOrigin = configService.get<string>('CORS_ORIGIN', '');
+  if (corsOrigin) {
+    const corsOrigins = corsOrigin.split(',').map((o) => o.trim());
+    app.enableCors({ origin: corsOrigins, credentials: true });
+  } else if (process.env.VERCEL === '1') {
+    // Same-origin /api/v1 requests need no CORS; allow preview/prod domains when configured explicitly later.
+    app.enableCors({ origin: true, credentials: true });
+  } else {
+    app.enableCors({
+      origin: ['http://localhost:3000', 'http://localhost:3001'],
+      credentials: true,
+    });
+  }
   const swaggerEnabled = configService.get<string>('SWAGGER_ENABLED', 'true') === 'true';
 
   app.useGlobalPipes(

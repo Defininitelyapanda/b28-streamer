@@ -55,7 +55,9 @@ export interface WatchlistEntry {
   addedAt: string;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
+import { getPublicApiBase } from "@/lib/api-base";
+
+const API_BASE = getPublicApiBase();
 
 export function getStoredTokens() {
   if (typeof window === "undefined") return { accessToken: null, refreshToken: null };
@@ -100,8 +102,27 @@ export async function apiRequest<T>(
   };
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
-  const json = (await res.json()) as ApiResponse<T>;
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  } catch {
+    throw new Error(
+      API_BASE.startsWith("/")
+        ? "Could not reach the API. Check that the backend service is deployed."
+        : "Could not reach the API. Is the backend running?",
+    );
+  }
+
+  let json: ApiResponse<T>;
+  try {
+    json = (await res.json()) as ApiResponse<T>;
+  } catch {
+    throw new Error(
+      res.ok
+        ? "Invalid response from server."
+        : `Request failed (${res.status}). The API may be misconfigured or unavailable.`,
+    );
+  }
 
   if (!json.success) {
     if (retry && json.error.code === "UNAUTHORIZED" && refreshToken) {
