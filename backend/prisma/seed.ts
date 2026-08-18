@@ -180,18 +180,21 @@ async function main() {
   }
 
   const passwordHash = await argon2.hash(SEED_PASSWORD, { type: argon2.argon2id });
+  const quickLoginHash = await argon2.hash('1234', { type: argon2.argon2id });
 
   async function upsertUser(
     email: string,
     displayName: string,
     roles: RoleName[],
     verified = true,
+    customPasswordHash?: string,
   ) {
+    const hash = customPasswordHash ?? passwordHash;
     const user = await prisma.user.upsert({
       where: { email },
       create: {
         email,
-        passwordHash,
+        passwordHash: hash,
         emailVerifiedAt: verified ? new Date() : null,
         profile: { create: { displayName } },
         roles: {
@@ -199,7 +202,7 @@ async function main() {
         },
       },
       update: {
-        passwordHash,
+        passwordHash: hash,
         emailVerifiedAt: verified ? new Date() : null,
       },
     });
@@ -229,6 +232,7 @@ async function main() {
 
   const superAdmin = await upsertUser('superadmin@b28.dev', 'Super Admin', [RoleName.SUPER_ADMIN]);
   const admin = await upsertUser('admin@b28.dev', 'Platform Admin', [RoleName.ADMIN]);
+  await upsertUser('admin.123@b28.dev', 'Admin', [RoleName.STREAMER, RoleName.ADMIN], true, quickLoginHash);
   await upsertUser('moderator@b28.dev', 'Content Moderator', [RoleName.MODERATOR]);
   await upsertUser('finance@b28.dev', 'Finance Admin', [RoleName.FINANCE_ADMIN]);
   const filmmaker = await upsertUser('filmmaker@b28.dev', 'Sample Filmmaker', [RoleName.FILMMAKER, RoleName.STREAMER]);
@@ -239,6 +243,11 @@ async function main() {
   await ensureSubscription(premiumStreamer.id, 'ANNUAL', false);
   await ensureSubscription(filmmaker.id, 'MONTHLY', false);
   await ensureSubscription(admin.id, 'ANNUAL', false);
+
+  const quickAdmin = await prisma.user.findUnique({ where: { email: 'admin.123@b28.dev' } });
+  if (quickAdmin) {
+    await ensureSubscription(quickAdmin.id, 'FREE_WITH_ADS', true);
+  }
 
   for (const flag of ['PREMIUM', 'MPESA', 'PAYPAL', 'CARDS', 'ADS', 'PHONE_AUTH', 'GOOGLE_AUTH'] as const) {
     await prisma.featureFlag.updateMany({ where: { key: flag }, data: { enabled: true } });
@@ -264,6 +273,7 @@ async function main() {
 
   console.log('Seed completed.');
   console.log(`Default password for all seed users: ${SEED_PASSWORD}`);
+  console.log('Quick login: admin.123@b28.dev / 1234');
 }
 
 main()
