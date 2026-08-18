@@ -10,7 +10,7 @@ import {
   SUBSCRIPTION_REQUIREMENTS_KEY,
   SubscriptionRequirement,
 } from '../decorators/subscription.decorators';
-import { AuthenticatedUser } from '../decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../decorators/current-user.decorator';
 import { SubscriptionsService } from '../../subscriptions/subscriptions.service';
 
 @Injectable()

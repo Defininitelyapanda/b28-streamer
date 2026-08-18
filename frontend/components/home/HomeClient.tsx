@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { CatalogVideo } from "@/lib/types";
 import type { ContentRow } from "@/lib/catalog-utils";
 import { getRowsFor } from "@/lib/catalog-utils";
@@ -24,17 +24,17 @@ export default function HomeClient({ videos }: HomeClientProps) {
   const [watchlist, setWatchlist] = useState<CatalogVideo[]>([]);
   const [progressMap, setProgressMap] = useState<Record<string, number>>({});
 
-  const loadPersonal = async () => {
+  const loadPersonal = useCallback(async () => {
     setRows(getRowsFor(videos, "All"));
     const cw = await syncContinueWatchingFromApi(videos);
     setContinueWatching(cw.videos);
     setProgressMap(cw.progressMap);
     setWatchlist(await syncWatchlistFromApi(videos));
-  };
+  }, [videos]);
 
   useEffect(() => {
     loadPersonal();
-  }, [videos, user]);
+  }, [loadPersonal, user]);
 
   async function handleRemoveContinue(videoId: string) {
     await removeFromContinueWatching(videoId);

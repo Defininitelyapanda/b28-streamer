@@ -7,7 +7,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { RoleName } from '@prisma/client';
 import { PERMISSIONS_KEY } from '../decorators/auth.decorators';
-import { AuthenticatedUser } from '../decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../decorators/current-user.decorator';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {

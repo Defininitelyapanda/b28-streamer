@@ -1,14 +1,17 @@
 import type { NextConfig } from "next";
 import path from "path";
 
+const monorepoRoot = path.join(__dirname, "..");
+
 const nextConfig: NextConfig = {
+  outputFileTracingRoot: monorepoRoot,
   env: {
     NEXT_PUBLIC_API_URL:
       process.env.NEXT_PUBLIC_API_URL ??
       (process.env.VERCEL ? "/api/v1" : "http://localhost:4000/api/v1"),
   },
   turbopack: {
-    root: path.join(process.cwd()),
+    root: monorepoRoot,
   },
   images: {
     remotePatterns: [

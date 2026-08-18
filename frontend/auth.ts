@@ -48,10 +48,19 @@ async function refreshTokens(refreshToken: string) {
 }
 
 async function buildSessionUser(tokens: { accessToken: string; refreshToken: string }) {
-  const [me, subscription] = await Promise.all([
-    apiGet<UserMe>("/users/me", tokens.accessToken),
-    apiGet<SubscriptionInfo>("/subscriptions/me", tokens.accessToken),
-  ]);
+  const me = await apiGet<UserMe>("/users/me", tokens.accessToken);
+  let subscription: SubscriptionInfo = {
+    plan: "FREE_WITH_ADS",
+    status: "ACTIVE",
+    adsEnabled: true,
+    isPremium: false,
+    expiresAt: null,
+  };
+  try {
+    subscription = await apiGet<SubscriptionInfo>("/subscriptions/me", tokens.accessToken);
+  } catch {
+    // Keep default free tier if subscription lookup fails
+  }
   return {
     id: me.id,
     email: me.email,
@@ -81,7 +90,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       authorize: async (credentials) => {
         try {
           if (credentials?.accessToken && credentials?.refreshToken) {
-            return buildSessionUser({
+            return await buildSessionUser({
               accessToken: credentials.accessToken as string,
               refreshToken: credentials.refreshToken as string,
             });
@@ -90,16 +99,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             const tokens = await apiPost<{ accessToken: string; refreshToken: string }>("/auth/google", {
               idToken: credentials.idToken,
             });
-            return buildSessionUser(tokens);
+            return await buildSessionUser(tokens);
           }
           if (credentials?.email && credentials?.password) {
             const tokens = await apiPost<{ accessToken: string; refreshToken: string }>("/auth/login", {
               email: credentials.email,
               password: credentials.password,
             });
-            return buildSessionUser(tokens);
+            return await buildSessionUser(tokens);
           }
-        } catch {
+        } catch (error) {
+          console.error("[auth] credentials authorize failed:", error);
           return null;
         }
         return null;

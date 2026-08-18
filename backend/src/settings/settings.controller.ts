@@ -5,7 +5,8 @@ import { Public, RequirePermissions } from '../common/decorators/auth.decorators
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { AuditService } from '../audit/audit.service';
-import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { UpdateFeatureFlagDto, UpsertSettingDto } from './dto/settings.dto';
 import { SettingsService } from './settings.service';
 

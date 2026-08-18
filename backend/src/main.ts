@@ -2,11 +2,27 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { execSync } from 'child_process';
+import { join } from 'path';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
+async function prepareDatabase() {
+  if (!process.env.DATABASE_URL) return;
+
+  const root = join(__dirname, '..');
+  try {
+    execSync('npx prisma migrate deploy', { cwd: root, stdio: 'inherit' });
+    execSync('npx tsx scripts/seed-if-empty.ts', { cwd: root, stdio: 'inherit', env: process.env });
+  } catch (err) {
+    console.warn('[startup] Database prepare failed:', err);
+  }
+}
+
 async function bootstrap() {
+  await prepareDatabase();
+
   const app = await NestFactory.create(AppModule);
 
   if (process.env.VERCEL === '1') {

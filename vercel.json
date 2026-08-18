@@ -15,7 +15,7 @@
     "backend": {
       "root": "backend",
       "framework": "nestjs",
-      "buildCommand": "npm run prisma:generate && npm run build && ([ -z \"$DATABASE_URL\" ] || (npm run prisma:migrate:deploy && npm run prisma:seed-if-empty))"
+      "buildCommand": "npm run prisma:generate && npm run build && node scripts/vercel-postbuild.js"
     }
   },
   "crons": [

@@ -38,6 +38,16 @@ function NavbarContent() {
     return false;
   }
 
+  if (pathname === "/login") {
+    return (
+      <header className="glass-bar sticky top-0 z-50 px-[2.2%] py-3 max-md:px-3">
+        <Link href="/" className="text-lg font-black uppercase tracking-tighter">
+          B28 <span className="text-accent">Entertainment</span>
+        </Link>
+      </header>
+    );
+  }
+
   return (
     <header className="glass-bar sticky top-0 z-50 flex flex-wrap items-center gap-2.5 px-[2.2%] py-2.5 max-md:px-3">
       <Link href="/" className="shrink-0 text-lg font-black uppercase tracking-tighter">
@@ -110,7 +120,7 @@ function NavbarContent() {
             </button>
           </>
         ) : (
-          <Link href="/login" className="nav-btn-sm nav-btn-active text-[0.65rem]">
+          <Link href="/login" className="nav-btn-sm text-[0.65rem]">
             Log in
           </Link>
         )}

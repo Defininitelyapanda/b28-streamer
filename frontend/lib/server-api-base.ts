@@ -28,5 +28,9 @@ export function getAuthSecret(): string {
   if (process.env.NODE_ENV === "development") {
     return "dev-auth-secret-change-me-min-32-characters";
   }
+  // Next.js loads auth config during production build; avoid hard-failing CI/Vercel.
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return "build-placeholder-secret-minimum-32-characters";
+  }
   throw new Error("AUTH_SECRET is not set. Add it to your environment variables.");
 }
