@@ -83,6 +83,6 @@ Watch progress, watch-later list, and subscription status sync to the backend wh
 
 ## Docs
 
-- [DEPLOY.md](DEPLOY.md) — Vercel (frontend root: `frontend/`)
+- [DEPLOY.md](DEPLOY.md) — Vercel Services (full stack from repo root)
 - [backend/README.md](backend/README.md) — API
 - [backend/dashboard/README.md](backend/dashboard/README.md) — Admin UI
