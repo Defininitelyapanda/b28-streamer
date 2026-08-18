@@ -70,7 +70,7 @@ export default function FeaturedCarousel({ videos }: FeaturedCarouselProps) {
         </div>
         <p className="mb-6 line-clamp-3 max-w-[560px] text-[0.96rem] text-[#dfe3eb]">{current.desc}</p>
         <div className="flex flex-wrap items-center gap-3">
-          <Link href={`/watch/${current.videoId}`} className="btn btn-primary">
+          <Link href={`/watch/${current.id}`} className="btn btn-primary">
             <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
               <path d="M8 5v14l11-7z" />
             </svg>

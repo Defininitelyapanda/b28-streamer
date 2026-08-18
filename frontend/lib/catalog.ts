@@ -1,5 +1,6 @@
 import "server-only";
 
+import { auth } from "@/auth";
 import { SEED_CATALOG } from "@/lib/seed-catalog";
 import type { CatalogData, CatalogVideo } from "@/lib/types";
 
@@ -8,7 +9,7 @@ declare global {
   var __b28CatalogCache: CatalogData | undefined;
 }
 
-const API_BASE = process.env.B28_API_URL ?? "http://localhost:4000";
+const API_ROOT = process.env.B28_API_URL?.replace(/\/$/, "") ?? "http://localhost:4000";
 const CATALOG_REVALIDATE = Number(process.env.CATALOG_REVALIDATE_SECONDS ?? "30");
 
 function defaultCatalog(): CatalogData {
@@ -51,12 +52,19 @@ export function normalizeMovie(
     videoId,
     type,
     seriesGroup,
+    accessTier: (item.accessTier as CatalogVideo["accessTier"]) ?? "FREE",
+    playbackFormat: (item.playbackFormat as CatalogVideo["playbackFormat"]) ?? "YOUTUBE",
+    durationSeconds: item.durationSeconds as number | null | undefined,
+    posterUrl: item.posterUrl as string | null | undefined,
   };
 }
 
-async function fetchCatalogFromApi(): Promise<CatalogData | null> {
+async function fetchCatalogFromApi(accessToken?: string): Promise<CatalogData | null> {
+  if (!accessToken) return null;
+
   try {
-    const res = await fetch(`${API_BASE}/api/v1/catalog`, {
+    const res = await fetch(`${API_ROOT}/api/v1/catalog`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
       next: { revalidate: CATALOG_REVALIDATE },
     });
     if (!res.ok) return null;
@@ -74,6 +82,8 @@ async function fetchCatalogFromApi(): Promise<CatalogData | null> {
 }
 
 async function loadLocalCatalog(): Promise<CatalogData | null> {
+  if (process.env.NODE_ENV === "production") return null;
+
   try {
     const fs = await import("fs/promises");
     const path = await import("path");
@@ -88,11 +98,14 @@ async function loadLocalCatalog(): Promise<CatalogData | null> {
 }
 
 export async function getCatalog(): Promise<CatalogData> {
-  if (globalThis.__b28CatalogCache && process.env.NODE_ENV === "production") {
+  const session = await auth();
+  const accessToken = session?.accessToken;
+
+  if (globalThis.__b28CatalogCache && process.env.NODE_ENV === "production" && accessToken) {
     return globalThis.__b28CatalogCache;
   }
 
-  const fromApi = await fetchCatalogFromApi();
+  const fromApi = await fetchCatalogFromApi(accessToken);
   if (fromApi) {
     globalThis.__b28CatalogCache = fromApi;
     return fromApi;
@@ -100,7 +113,6 @@ export async function getCatalog(): Promise<CatalogData> {
 
   const local = await loadLocalCatalog();
   if (local) {
-    globalThis.__b28CatalogCache = local;
     return local;
   }
 

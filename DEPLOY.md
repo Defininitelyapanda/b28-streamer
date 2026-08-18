@@ -69,6 +69,9 @@ Set for **Production**, **Preview**, and **Development**:
 |-----|-------|
 | `REDIS_URL` | Optional — health reports `redis: false` when unset; readiness only requires database |
 | `GOOGLE_CLIENT_ID` | Required for Google sign-in (must match frontend `NEXT_PUBLIC_GOOGLE_CLIENT_ID`) |
+| `YOUTUBE_API_KEY` | Required for server-side YouTube catalog sync |
+| `YOUTUBE_CHANNEL_ID` | YouTube channel to sync into Postgres |
+| `CRON_SECRET` | Validates internal YouTube sync cron requests |
 | `RESEND_API_KEY` | Sends verification/reset emails in production (console fallback when unset) |
 | `EMAIL_FROM` | Sender address for Resend |
 | `CORS_ORIGIN` | Defaults work when frontend and API share the same Vercel domain |
@@ -79,9 +82,31 @@ Set for **Production**, **Preview**, and **Development**:
 | Key | Production value |
 |-----|------------------|
 | `NEXT_PUBLIC_API_URL` | `/api/v1` (same-origin; no `localhost`) |
-| `YOUTUBE_API_KEY` | Optional — seeded catalog works without it |
-| `YOUTUBE_CHANNEL_ID` | Optional |
+| `AUTH_SECRET` | Random 32+ char secret for NextAuth session encryption |
+| `AUTH_URL` | `https://YOUR-APP.vercel.app` (production site URL) |
+| `GOOGLE_CLIENT_ID` | Same as backend — enables Google OAuth in NextAuth |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret for NextAuth |
+| `YOUTUBE_API_KEY` | Required for YouTube → Postgres sync |
+| `YOUTUBE_CHANNEL_ID` | Required for YouTube sync |
 | `CRON_SECRET` | Required for `/api/sync` cron in production |
+
+### Cloudflare R2 (self-hosted playback)
+
+| Key | Notes |
+|-----|-------|
+| `R2_ACCOUNT_ID` | Cloudflare account ID |
+| `R2_ACCESS_KEY_ID` | R2 API token access key |
+| `R2_SECRET_ACCESS_KEY` | R2 API token secret |
+| `R2_BUCKET_NAME` | Bucket for film uploads |
+| `R2_PUBLIC_DOMAIN` | Optional CDN domain for poster images |
+
+### Admin dashboard (separate deploy)
+
+| Key | Notes |
+|-----|-------|
+| `AUTH_SECRET` | Use a **different** value from frontend if both share a parent domain |
+| `AUTH_URL` | Admin dashboard URL |
+| `NEXT_PUBLIC_API_URL` | Backend API base (`/api/v1` or full URL) |
 
 `B28_API_URL` is injected automatically via the **service binding** in [vercel.json](vercel.json) so server-side catalog fetches reach the backend internally.
 
@@ -106,8 +131,8 @@ Replace `YOUR-APP` with your Vercel URL (e.g. `b28-streamer.vercel.app`):
 
 - https://YOUR-APP.vercel.app/
 - https://YOUR-APP.vercel.app/browse
-- https://YOUR-APP.vercel.app/api/catalog
-- https://YOUR-APP.vercel.app/api/v1/catalog
+- https://YOUR-APP.vercel.app/login (auth required for streaming)
+- https://YOUR-APP.vercel.app/api/v1/catalog (requires Bearer token)
 - https://YOUR-APP.vercel.app/health
 - https://YOUR-APP.vercel.app/api/docs
 

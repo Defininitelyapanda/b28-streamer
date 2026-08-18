@@ -1,22 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { Sidebar } from "@/components/Sidebar";
-import { getStoredTokens } from "@/lib/api-client";
 
 function AdminGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (loading) return;
-    const { accessToken } = getStoredTokens();
-    if (!accessToken || !user) {
-      router.replace("/login");
-    }
-  }, [loading, user, router]);
 
   if (loading) {
     return (

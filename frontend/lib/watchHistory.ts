@@ -2,7 +2,6 @@ import type { CatalogVideo, WatchProgress } from "@/lib/types";
 import {
   getContinueWatching as getRemoteContinue,
   getWatchlist as getRemoteWatchlist,
-  getStoredTokens,
   removeContinueWatching,
   saveWatchProgress,
   toggleWatchlistRemote,
@@ -27,8 +26,11 @@ function writeJson(key: string, value: unknown) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-function isLoggedIn() {
-  return Boolean(getStoredTokens().accessToken);
+async function isLoggedIn() {
+  if (typeof window === "undefined") return false;
+  const { getSession } = await import("next-auth/react");
+  const session = await getSession();
+  return Boolean(session?.accessToken);
 }
 
 export function getWatchlist(): string[] {
@@ -36,7 +38,7 @@ export function getWatchlist(): string[] {
 }
 
 export async function toggleWatchlist(videoId: string): Promise<boolean> {
-  if (isLoggedIn()) {
+  if (await isLoggedIn()) {
     const result = await toggleWatchlistRemote(videoId);
     const list = getWatchlist();
     const next = result.saved
@@ -57,7 +59,7 @@ export function isInWatchlist(videoId: string): boolean {
 }
 
 export async function syncWatchlistFromApi(videos: CatalogVideo[]): Promise<CatalogVideo[]> {
-  if (!isLoggedIn()) return getWatchlistVideos(videos);
+  if (!(await isLoggedIn())) return getWatchlistVideos(videos);
   try {
     const remote = await getRemoteWatchlist();
     writeJson(WATCHLIST_KEY, remote.map((r) => r.videoSlug));
@@ -89,7 +91,7 @@ export async function saveProgress(videoId: string, progressSeconds: number) {
     updatedAt: new Date().toISOString(),
   };
   writeJson(PROGRESS_KEY, map);
-  if (isLoggedIn()) {
+  if (await isLoggedIn()) {
     try {
       await saveWatchProgress(videoId, progressSeconds);
     } catch {
@@ -108,7 +110,7 @@ export async function syncContinueWatchingFromApi(videos: CatalogVideo[]): Promi
     progressMap[e.videoId] = e.progressSeconds;
   });
 
-  if (!isLoggedIn()) {
+  if (!(await isLoggedIn())) {
     return {
       videos: getContinueWatching(videos),
       progressMap,
@@ -156,7 +158,7 @@ export async function removeFromContinueWatching(videoId: string) {
   const map = getProgressMap();
   delete map[videoId];
   writeJson(PROGRESS_KEY, map);
-  if (isLoggedIn()) {
+  if (await isLoggedIn()) {
     try {
       await removeContinueWatching(videoId);
     } catch {

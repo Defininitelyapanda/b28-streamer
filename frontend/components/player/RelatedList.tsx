@@ -18,7 +18,7 @@ export default function RelatedList({ videos, currentVideoId }: RelatedListProps
       {related.map((video) => (
         <Link
           key={video.id}
-          href={`/watch/${video.videoId}`}
+          href={`/watch/${video.id}`}
           className="flex items-center gap-3 rounded-[10px] border border-transparent bg-white/[0.02] p-2 transition hover:border-accent/35 hover:bg-white/5"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}

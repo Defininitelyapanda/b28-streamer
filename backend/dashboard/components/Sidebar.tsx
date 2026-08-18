@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { filterNav, NAV_ITEMS } from "@/lib/nav-config";
-import { logout } from "@/lib/api-client";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -14,8 +13,7 @@ export function Sidebar() {
   const items = filterNav(NAV_ITEMS, user?.roles ?? [], permissions);
 
   const handleLogout = async () => {
-    await logout();
-    logoutLocal();
+    await logoutLocal();
     router.push("/login");
   };
 

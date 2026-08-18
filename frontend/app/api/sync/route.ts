@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { saveCatalog } from "@/lib/catalog";
-import { syncFromYouTubeChannel } from "@/lib/youtube";
 
 function isAuthorized(request: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
@@ -13,29 +11,35 @@ function isAuthorized(request: NextRequest): boolean {
   return headerSecret === secret;
 }
 
+function getBackendBase(): string {
+  return process.env.B28_API_URL?.replace(/\/$/, "") ?? "http://localhost:4000";
+}
+
 export async function GET(request: NextRequest) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const videos = await syncFromYouTubeChannel();
-    const catalog = {
-      videos,
-      syncedAt: new Date().toISOString(),
-      source: "youtube channel sync",
-    };
+    const res = await fetch(`${getBackendBase()}/api/v1/admin/catalog/internal/sync-youtube`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-cron-secret": process.env.CRON_SECRET ?? "",
+      },
+    });
 
-    await saveCatalog(catalog);
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      const message = json.error?.message ?? "Sync failed";
+      return NextResponse.json({ ok: false, error: message }, { status: res.status || 500 });
+    }
 
     return NextResponse.json({
       ok: true,
-      count: videos.length,
-      syncedAt: catalog.syncedAt,
-      message:
-        process.env.VERCEL === "1"
-          ? "Catalog synced to runtime cache. Run npm run sync locally and commit data/catalog.json for persistent updates on Vercel."
-          : "Catalog synced and saved to data/catalog.json",
+      count: json.data.count,
+      syncedAt: json.data.syncedAt,
+      message: "Catalog synced to Postgres via backend",
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Sync failed";

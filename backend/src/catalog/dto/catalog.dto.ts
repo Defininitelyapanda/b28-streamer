@@ -1,4 +1,5 @@
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { PlaybackFormat, VideoAccessTier } from '@prisma/client';
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class UpsertCatalogVideoDto {
   @IsString()
@@ -33,6 +34,27 @@ export class UpsertCatalogVideoDto {
 
   @IsString()
   seriesGroup!: string;
+
+  @IsOptional()
+  @IsEnum(VideoAccessTier)
+  accessTier?: VideoAccessTier;
+
+  @IsOptional()
+  @IsEnum(PlaybackFormat)
+  playbackFormat?: PlaybackFormat;
+
+  @IsOptional()
+  @IsString()
+  storageKey?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  durationSeconds?: number;
+
+  @IsOptional()
+  @IsString()
+  posterUrl?: string;
 
   @IsOptional()
   @IsBoolean()
@@ -73,6 +95,43 @@ export class UpdateCatalogVideoDto {
   seriesGroup?: string;
 
   @IsOptional()
+  @IsString()
+  sourceType?: string;
+
+  @IsOptional()
+  @IsString()
+  videoId?: string;
+
+  @IsOptional()
+  @IsEnum(VideoAccessTier)
+  accessTier?: VideoAccessTier;
+
+  @IsOptional()
+  @IsEnum(PlaybackFormat)
+  playbackFormat?: PlaybackFormat;
+
+  @IsOptional()
+  @IsString()
+  storageKey?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  durationSeconds?: number;
+
+  @IsOptional()
+  @IsString()
+  posterUrl?: string;
+
+  @IsOptional()
   @IsBoolean()
   published?: boolean;
+}
+
+export class PresignUploadDto {
+  @IsString()
+  slug!: string;
+
+  @IsString()
+  contentType!: string;
 }

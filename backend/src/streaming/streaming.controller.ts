@@ -1,14 +1,24 @@
-import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
+import { RequireStreamingAccess } from '../common/decorators/subscription.decorators';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { SubscriptionGuard } from '../common/guards/subscription.guard';
 import { UpsertProgressDto, WatchlistDto } from './dto/streaming.dto';
 import { StreamingService } from './streaming.service';
 
 @ApiTags('streaming')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard, SubscriptionGuard)
+@RequireStreamingAccess()
 @Controller('api/v1/streaming')
 export class StreamingController {
   constructor(private streamingService: StreamingService) {}
+
+  @Get('play/:slug')
+  getPlayback(@CurrentUser() user: AuthenticatedUser, @Param('slug') slug: string) {
+    return this.streamingService.getPlaybackInfo(user.id, decodeURIComponent(slug));
+  }
 
   @Get('continue-watching')
   getContinueWatching(@CurrentUser() user: AuthenticatedUser) {

@@ -1,10 +1,65 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { PlaybackFormat, VideoAccessTier } from '@prisma/client';
+import { CatalogService } from '../catalog/catalog.service';
+import { R2StorageService } from '../storage/r2-storage.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertProgressDto } from './dto/streaming.dto';
 
+export interface PlaybackInfo {
+  playbackFormat: PlaybackFormat;
+  videoId?: string;
+  url?: string;
+  expiresAt?: string;
+  accessTier: VideoAccessTier;
+  adsEnabled: boolean;
+}
+
 @Injectable()
 export class StreamingService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private catalogService: CatalogService,
+    private subscriptionsService: SubscriptionsService,
+    private r2Storage: R2StorageService,
+  ) {}
+
+  async getPlaybackInfo(userId: string, slug: string): Promise<PlaybackInfo> {
+    const video = await this.catalogService.findBySlug(slug);
+    const sub = await this.subscriptionsService.getMySubscription(userId);
+
+    if (video.accessTier === VideoAccessTier.PREMIUM && !sub.isPremium) {
+      throw new ForbiddenException({
+        code: 'PREMIUM_REQUIRED',
+        message: 'Premium subscription required for this title.',
+      });
+    }
+
+    if (video.playbackFormat === PlaybackFormat.YOUTUBE) {
+      return {
+        playbackFormat: PlaybackFormat.YOUTUBE,
+        videoId: video.videoId,
+        accessTier: video.accessTier,
+        adsEnabled: sub.adsEnabled,
+      };
+    }
+
+    if (!video.storageKey) {
+      throw new NotFoundException({
+        code: 'PLAYBACK_UNAVAILABLE',
+        message: 'Video file not available.',
+      });
+    }
+
+    const presigned = await this.r2Storage.getPresignedPlaybackUrl(video.storageKey);
+    return {
+      playbackFormat: video.playbackFormat,
+      url: presigned.url,
+      expiresAt: presigned.expiresAt,
+      accessTier: video.accessTier,
+      adsEnabled: sub.adsEnabled,
+    };
+  }
 
   async getContinueWatching(userId: string) {
     const rows = await this.prisma.watchProgress.findMany({

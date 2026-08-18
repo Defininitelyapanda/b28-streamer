@@ -1,3 +1,5 @@
+import { getPublicApiBase } from "@/lib/api-base";
+
 export interface ApiSuccess<T> {
   success: true;
   data: T;
@@ -55,46 +57,29 @@ export interface WatchlistEntry {
   addedAt: string;
 }
 
-import { getPublicApiBase } from "@/lib/api-base";
+import type { PlaybackInfo } from "@/lib/types";
 
 const API_BASE = getPublicApiBase();
 
-export function getStoredTokens() {
-  if (typeof window === "undefined") return { accessToken: null, refreshToken: null };
-  return {
-    accessToken: localStorage.getItem("b28_access_token"),
-    refreshToken: localStorage.getItem("b28_refresh_token"),
-  };
-}
-
-export function setStoredTokens(accessToken: string, refreshToken: string) {
-  localStorage.setItem("b28_access_token", accessToken);
-  localStorage.setItem("b28_refresh_token", refreshToken);
-}
-
-export function clearStoredTokens() {
-  localStorage.removeItem("b28_access_token");
-  localStorage.removeItem("b28_refresh_token");
-}
-
-async function refreshAccessToken(refreshToken: string): Promise<string | null> {
-  const res = await fetch(`${API_BASE}/auth/refresh`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refreshToken }),
-  });
-  const json = (await res.json()) as ApiResponse<{ accessToken: string; refreshToken: string }>;
-  if (!json.success) return null;
-  setStoredTokens(json.data.accessToken, json.data.refreshToken);
-  return json.data.accessToken;
+async function resolveAccessToken(provided?: string | null): Promise<string | null> {
+  if (provided) return provided;
+  if (typeof window === "undefined") {
+    const { auth } = await import("@/auth");
+    const session = await auth();
+    return session?.accessToken ?? null;
+  }
+  const { getSession } = await import("next-auth/react");
+  const session = await getSession();
+  return session?.accessToken ?? null;
 }
 
 export async function apiRequest<T>(
   path: string,
   options: RequestInit = {},
   retry = true,
+  accessTokenOverride?: string | null,
 ): Promise<T> {
-  let { accessToken, refreshToken } = getStoredTokens();
+  let accessToken = await resolveAccessToken(accessTokenOverride);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -125,24 +110,16 @@ export async function apiRequest<T>(
   }
 
   if (!json.success) {
-    if (retry && json.error.code === "UNAUTHORIZED" && refreshToken) {
-      const newToken = await refreshAccessToken(refreshToken);
-      if (newToken) return apiRequest<T>(path, options, false);
+    if (retry && json.error.code === "UNAUTHORIZED") {
+      const { getSession } = await import("next-auth/react");
+      const session = await getSession();
+      accessToken = session?.accessToken ?? null;
+      if (accessToken) return apiRequest<T>(path, options, false, accessToken);
     }
     throw new Error(json.error.message);
   }
 
   return json.data;
-}
-
-export async function loginEmail(email: string, password: string) {
-  const data = await apiRequest<{ accessToken: string; refreshToken: string }>(
-    "/auth/login",
-    { method: "POST", body: JSON.stringify({ email, password }) },
-    false,
-  );
-  setStoredTokens(data.accessToken, data.refreshToken);
-  return data;
 }
 
 export async function registerEmail(
@@ -167,38 +144,6 @@ export async function sendPhoneOtp(phone: string) {
     { method: "POST", body: JSON.stringify({ phone }) },
     false,
   );
-}
-
-export async function verifyPhoneOtp(phone: string, code: string, displayName?: string) {
-  const data = await apiRequest<{ accessToken: string; refreshToken: string }>(
-    "/auth/phone/verify",
-    { method: "POST", body: JSON.stringify({ phone, code, displayName }) },
-    false,
-  );
-  setStoredTokens(data.accessToken, data.refreshToken);
-  return data;
-}
-
-export async function loginGoogle(idToken: string) {
-  const data = await apiRequest<{ accessToken: string; refreshToken: string }>(
-    "/auth/google",
-    { method: "POST", body: JSON.stringify({ idToken }) },
-    false,
-  );
-  setStoredTokens(data.accessToken, data.refreshToken);
-  return data;
-}
-
-export async function logout() {
-  const { refreshToken } = getStoredTokens();
-  if (refreshToken) {
-    await fetch(`${API_BASE}/auth/logout`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
-    });
-  }
-  clearStoredTokens();
 }
 
 export async function getMe(): Promise<UserMe> {
@@ -241,6 +186,10 @@ export async function addPaymentMethod(body: {
   });
 }
 
+export async function getPlaybackInfo(slug: string): Promise<PlaybackInfo> {
+  return apiRequest<PlaybackInfo>(`/streaming/play/${encodeURIComponent(slug)}`);
+}
+
 export async function getContinueWatching() {
   return apiRequest<WatchProgressEntry[]>("/streaming/continue-watching");
 }
@@ -268,8 +217,4 @@ export async function toggleWatchlistRemote(videoSlug: string) {
     method: "POST",
     body: JSON.stringify({ videoSlug }),
   });
-}
-
-export function isAuthenticated() {
-  return Boolean(getStoredTokens().accessToken);
 }

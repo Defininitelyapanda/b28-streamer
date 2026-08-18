@@ -59,42 +59,25 @@ export interface OverviewStats {
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 const API_ROOT = API_BASE.replace(/\/api\/v1\/?$/, "");
 
-export function getStoredTokens() {
-  if (typeof window === "undefined") return { accessToken: null, refreshToken: null };
-  return {
-    accessToken: localStorage.getItem("b28_access_token"),
-    refreshToken: localStorage.getItem("b28_refresh_token"),
-  };
-}
-
-export function setStoredTokens(accessToken: string, refreshToken: string) {
-  localStorage.setItem("b28_access_token", accessToken);
-  localStorage.setItem("b28_refresh_token", refreshToken);
-}
-
-export function clearStoredTokens() {
-  localStorage.removeItem("b28_access_token");
-  localStorage.removeItem("b28_refresh_token");
-}
-
-async function refreshAccessToken(refreshToken: string): Promise<string | null> {
-  const res = await fetch(`${API_BASE}/auth/refresh`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refreshToken }),
-  });
-  const json = (await res.json()) as ApiResponse<{ accessToken: string; refreshToken: string }>;
-  if (!json.success) return null;
-  setStoredTokens(json.data.accessToken, json.data.refreshToken);
-  return json.data.accessToken;
+async function resolveAccessToken(provided?: string | null): Promise<string | null> {
+  if (provided) return provided;
+  if (typeof window === "undefined") {
+    const { auth } = await import("@/auth");
+    const session = await auth();
+    return session?.accessToken ?? null;
+  }
+  const { getSession } = await import("next-auth/react");
+  const session = await getSession();
+  return session?.accessToken ?? null;
 }
 
 export async function apiRequest<T>(
   path: string,
   options: RequestInit = {},
   retry = true,
+  accessTokenOverride?: string | null,
 ): Promise<T> {
-  let { accessToken, refreshToken } = getStoredTokens();
+  let accessToken = await resolveAccessToken(accessTokenOverride);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -106,9 +89,11 @@ export async function apiRequest<T>(
   const json = (await res.json()) as ApiResponse<T>;
 
   if (!json.success) {
-    if (retry && json.error.code === "UNAUTHORIZED" && refreshToken) {
-      const newToken = await refreshAccessToken(refreshToken);
-      if (newToken) return apiRequest<T>(path, options, false);
+    if (retry && json.error.code === "UNAUTHORIZED") {
+      const { getSession } = await import("next-auth/react");
+      const session = await getSession();
+      accessToken = session?.accessToken ?? null;
+      if (accessToken) return apiRequest<T>(path, options, false, accessToken);
     }
     throw new Error(json.error.message);
   }
@@ -121,30 +106,6 @@ export async function apiHealthReady() {
   const json = (await res.json()) as ApiResponse<{ status: string; checks: { database: boolean; redis: boolean } }>;
   if (!json.success) throw new Error("Health check failed");
   return json.data;
-}
-
-export async function login(email: string, password: string) {
-  const res = await fetch(`${API_BASE}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  const json = (await res.json()) as ApiResponse<{ accessToken: string; refreshToken: string }>;
-  if (!json.success) throw new Error(json.error.message);
-  setStoredTokens(json.data.accessToken, json.data.refreshToken);
-  return json.data;
-}
-
-export async function logout() {
-  const { refreshToken } = getStoredTokens();
-  if (refreshToken) {
-    await fetch(`${API_BASE}/auth/logout`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
-    });
-  }
-  clearStoredTokens();
 }
 
 export async function getMe(): Promise<UserMe> {
@@ -215,6 +176,11 @@ export interface CatalogVideo {
   videoId: string;
   type: string;
   seriesGroup: string;
+  accessTier?: "FREE" | "PREMIUM";
+  playbackFormat?: "YOUTUBE" | "MP4" | "HLS";
+  storageKey?: string | null;
+  durationSeconds?: number | null;
+  posterUrl?: string | null;
   published?: boolean;
 }
 
@@ -234,11 +200,29 @@ export async function upsertCatalogVideo(video: {
   videoId: string;
   type: string;
   seriesGroup: string;
+  accessTier?: "FREE" | "PREMIUM";
+  playbackFormat?: "YOUTUBE" | "MP4" | "HLS";
+  storageKey?: string;
+  durationSeconds?: number;
+  posterUrl?: string;
   published?: boolean;
 }) {
   return apiRequest<CatalogVideo>("/admin/catalog", {
     method: "PUT",
     body: JSON.stringify(video),
+  });
+}
+
+export async function requestUploadUrl(slug: string, contentType: string) {
+  return apiRequest<{ url: string; key: string; expiresIn: number }>("/admin/catalog/upload-url", {
+    method: "POST",
+    body: JSON.stringify({ slug, contentType }),
+  });
+}
+
+export async function syncYoutubeCatalog() {
+  return apiRequest<{ count: number; syncedAt: string }>("/admin/catalog/sync-youtube", {
+    method: "POST",
   });
 }
 
@@ -253,6 +237,13 @@ export async function updateCatalogVideo(
     rating: string;
     type: string;
     seriesGroup: string;
+    sourceType: string;
+    videoId: string;
+    accessTier: "FREE" | "PREMIUM";
+    playbackFormat: "YOUTUBE" | "MP4" | "HLS";
+    storageKey: string;
+    durationSeconds: number;
+    posterUrl: string;
     published: boolean;
   }>,
 ) {

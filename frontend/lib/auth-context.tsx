@@ -1,15 +1,8 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import {
-  clearStoredTokens,
-  getMe,
-  getMySubscription,
-  getStoredTokens,
-  logout as apiLogout,
-  SubscriptionInfo,
-  UserMe,
-} from "@/lib/api-client";
+import { createContext, useCallback, useContext } from "react";
+import { signOut, useSession } from "next-auth/react";
+import type { SubscriptionInfo, UserMe } from "@/lib/api-client";
 
 interface AuthContextValue {
   user: UserMe | null;
@@ -30,40 +23,49 @@ const AuthContext = createContext<AuthContextValue>({
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<UserMe | null>(null);
-  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: session, status, update } = useSession();
+  const loading = status === "loading";
+
+  const user: UserMe | null = session?.user?.id
+    ? {
+        id: session.user.id,
+        email: session.user.email ?? "",
+        displayName: session.user.name ?? null,
+        status: "ACTIVE",
+        emailVerified: true,
+        roles: session.user.roles ?? [],
+        createdAt: "",
+      }
+    : null;
+
+  const subscription = session?.subscription ?? null;
 
   const refresh = useCallback(async () => {
-    const { accessToken } = getStoredTokens();
-    if (!accessToken) {
-      setUser(null);
-      setSubscription(null);
-      setLoading(false);
-      return;
-    }
-    try {
-      const [me, sub] = await Promise.all([getMe(), getMySubscription()]);
-      setUser(me);
-      setSubscription(sub);
-    } catch {
-      clearStoredTokens();
-      setUser(null);
-      setSubscription(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+    await update();
+  }, [update]);
 
   const logout = useCallback(async () => {
-    await apiLogout();
-    setUser(null);
-    setSubscription(null);
-  }, []);
+    const accessToken = session?.accessToken;
+    if (accessToken) {
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "/api/v1"}/auth/logout`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken: "" }),
+        });
+      } catch {
+        // ignore logout API errors
+      }
+    }
+    await signOut({ callbackUrl: "/login" });
+  }, [session?.accessToken]);
+
+  const setSubscription = useCallback(
+    (_sub: SubscriptionInfo | null) => {
+      void update();
+    },
+    [update],
+  );
 
   return (
     <AuthContext.Provider value={{ user, subscription, loading, refresh, logout, setSubscription }}>
@@ -80,4 +82,9 @@ export function useShowAds() {
   const { subscription, user } = useAuth();
   if (!user) return true;
   return subscription?.adsEnabled !== false;
+}
+
+export function useIsPremium() {
+  const { subscription } = useAuth();
+  return subscription?.isPremium === true;
 }

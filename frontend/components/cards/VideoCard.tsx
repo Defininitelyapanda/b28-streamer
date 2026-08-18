@@ -40,7 +40,7 @@ export default function VideoCard({ video, showProgress, showRemove, onRemove }:
       >
         <WatchlistButton videoId={video.videoId} compact />
       </div>
-      <Link href={`/watch/${video.videoId}`} className="block">
+      <Link href={`/watch/${video.id}`} className="block">
         <div className="relative aspect-[2/3] overflow-hidden bg-[#0b0d12]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img

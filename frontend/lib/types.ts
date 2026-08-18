@@ -1,5 +1,9 @@
 export type VideoType = "film" | "trailer";
 
+export type VideoAccessTier = "FREE" | "PREMIUM";
+
+export type PlaybackFormat = "YOUTUBE" | "MP4" | "HLS";
+
 export type Genre = "Drama" | "Action" | "Thriller" | "Horror" | "Popular";
 
 export interface CatalogVideo {
@@ -14,12 +18,28 @@ export interface CatalogVideo {
   videoId: string;
   type: VideoType;
   seriesGroup: string;
+  accessTier?: VideoAccessTier;
+  playbackFormat?: PlaybackFormat;
+  durationSeconds?: number | null;
+  posterUrl?: string | null;
 }
 
 export interface CatalogData {
   videos: CatalogVideo[];
   syncedAt: string | null;
   source: string;
+  page?: number;
+  limit?: number;
+  total?: number;
+}
+
+export interface PlaybackInfo {
+  playbackFormat: PlaybackFormat;
+  videoId?: string;
+  url?: string;
+  expiresAt?: string;
+  accessTier: VideoAccessTier;
+  adsEnabled: boolean;
 }
 
 export interface WatchProgress {

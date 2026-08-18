@@ -1,33 +1,36 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { login, getMe, isAdminUser } from "@/lib/api-client";
+import { useRouter, useSearchParams } from "next/navigation";
+import { signIn, useSession } from "next-auth/react";
+import { Suspense, useEffect } from "react";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { status } = useSession();
   const [email, setEmail] = useState("admin@b28.dev");
   const [password, setPassword] = useState("Password123!");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const redirect = searchParams.get("redirect") ?? "/";
+
+  useEffect(() => {
+    if (status === "authenticated") router.replace(redirect);
+  }, [status, router, redirect]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
-    try {
-      await login(email, password);
-      const me = await getMe();
-      if (!isAdminUser(me.roles)) {
-        setError("Your account does not have admin access.");
-        return;
-      }
-      router.push("/");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
-    } finally {
-      setLoading(false);
+    const result = await signIn("credentials", { email, password, redirect: false });
+    setLoading(false);
+    if (result?.error) {
+      setError("Invalid credentials or insufficient admin access.");
+      return;
     }
+    router.push(redirect);
   };
 
   return (
@@ -65,10 +68,16 @@ export default function LoginPage() {
             {loading ? "Signing in..." : "Sign in"}
           </button>
         </form>
-        <p className="mt-6 text-center text-xs text-gray-500">
-          Seed: admin@b28.dev / Password123!
-        </p>
+        <p className="mt-6 text-center text-xs text-gray-500">Seed: admin@b28.dev / Password123!</p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<p className="text-center text-gray-400">Loading…</p>}>
+      <LoginForm />
+    </Suspense>
   );
 }

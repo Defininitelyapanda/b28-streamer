@@ -123,6 +123,8 @@ async function seedCatalogVideos() {
         videoId: v.videoId,
         type: v.type,
         seriesGroup: v.seriesGroup,
+        accessTier: 'FREE',
+        playbackFormat: 'YOUTUBE',
         published: true,
         sortOrder: order++,
       },
@@ -137,6 +139,8 @@ async function seedCatalogVideos() {
         videoId: v.videoId,
         type: v.type,
         seriesGroup: v.seriesGroup,
+        accessTier: 'FREE',
+        playbackFormat: 'YOUTUBE',
         sortOrder: order++,
       },
     });

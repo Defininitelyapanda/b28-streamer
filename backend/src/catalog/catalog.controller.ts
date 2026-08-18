@@ -1,20 +1,34 @@
-import { Body, Controller, Delete, Get, Param, Patch, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Put, Query, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Public, RequirePermissions } from '../common/decorators/auth.decorators';
+import { RequireStreamingAccess } from '../common/decorators/subscription.decorators';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
+import { SubscriptionGuard } from '../common/guards/subscription.guard';
+import { R2StorageService } from '../storage/r2-storage.service';
 import { CatalogService } from './catalog.service';
-import { UpdateCatalogVideoDto, UpsertCatalogVideoDto } from './dto/catalog.dto';
+import { PresignUploadDto, UpdateCatalogVideoDto, UpsertCatalogVideoDto } from './dto/catalog.dto';
+import { YoutubeSyncService } from './youtube-sync.service';
 
 @ApiTags('catalog')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, SubscriptionGuard)
 @Controller('api/v1')
 export class CatalogController {
   constructor(private catalogService: CatalogService) {}
 
-  @Public()
+  @RequireStreamingAccess()
   @Get('catalog')
-  getPublicCatalog() {
-    return this.catalogService.getPublicCatalog();
+  getCatalog(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('genre') genre?: string,
+  ) {
+    return this.catalogService.getPublicCatalog({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      genre,
+    });
   }
 }
 
@@ -23,7 +37,11 @@ export class CatalogController {
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('api/v1/admin/catalog')
 export class AdminCatalogController {
-  constructor(private catalogService: CatalogService) {}
+  constructor(
+    private catalogService: CatalogService,
+    private youtubeSync: YoutubeSyncService,
+    private r2Storage: R2StorageService,
+  ) {}
 
   @RequirePermissions('films.read')
   @Get()
@@ -35,6 +53,29 @@ export class AdminCatalogController {
   @Put()
   upsert(@Body() dto: UpsertCatalogVideoDto) {
     return this.catalogService.upsert(dto);
+  }
+
+  @RequirePermissions('films.approve')
+  @Post('upload-url')
+  presignUpload(@Body() dto: PresignUploadDto) {
+    const key = `films/${dto.slug}/${Date.now()}.mp4`;
+    return this.r2Storage.getPresignedUploadUrl(key, dto.contentType);
+  }
+
+  @RequirePermissions('films.approve')
+  @Post('sync-youtube')
+  syncYoutube() {
+    return this.youtubeSync.syncFromChannel();
+  }
+
+  @Public()
+  @Post('internal/sync-youtube')
+  syncYoutubeCron(@Headers('x-cron-secret') cronSecret?: string) {
+    const expected = process.env.CRON_SECRET;
+    if (!expected || cronSecret !== expected) {
+      throw new UnauthorizedException({ code: 'UNAUTHORIZED', message: 'Invalid cron secret.' });
+    }
+    return this.youtubeSync.syncFromChannel();
   }
 
   @RequirePermissions('films.approve')

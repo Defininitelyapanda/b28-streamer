@@ -253,25 +253,42 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+enum VideoAccessTier {
+  FREE
+  PREMIUM
+}
+
+enum PlaybackFormat {
+  YOUTUBE
+  MP4
+  HLS
+}
+
 model CatalogVideo {
-  slug        String   @id
-  title       String
-  thumbnail   String
-  date        String
-  genre       String
-  description String   @map("description")
-  rating      String
-  sourceType  String   @map("source_type")
-  videoId     String   @map("video_id")
-  type        String
-  seriesGroup String   @map("series_group")
-  published   Boolean  @default(true)
-  sortOrder   Int      @default(0) @map("sort_order")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  slug            String           @id
+  title           String
+  thumbnail       String
+  date            String
+  genre           String
+  description     String           @map("description")
+  rating          String
+  sourceType      String           @map("source_type")
+  videoId         String           @map("video_id")
+  type            String
+  seriesGroup     String           @map("series_group")
+  accessTier      VideoAccessTier  @default(FREE) @map("access_tier")
+  playbackFormat  PlaybackFormat   @default(YOUTUBE) @map("playback_format")
+  storageKey      String?          @map("storage_key")
+  durationSeconds Int?             @map("duration_seconds")
+  posterUrl       String?          @map("poster_url")
+  published       Boolean          @default(true)
+  sortOrder       Int              @default(0) @map("sort_order")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
 
   @@index([published])
   @@index([genre])
+  @@index([accessTier])
   @@map("catalog_videos")
 }
 

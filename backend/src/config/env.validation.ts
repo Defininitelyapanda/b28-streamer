@@ -14,4 +14,11 @@ export const envValidationSchema = Joi.object({
   GOOGLE_CLIENT_ID: Joi.string().optional(),
   RESEND_API_KEY: Joi.string().optional(),
   EMAIL_FROM: Joi.string().email().optional(),
+  YOUTUBE_API_KEY: Joi.string().optional(),
+  YOUTUBE_CHANNEL_ID: Joi.string().optional(),
+  R2_ACCOUNT_ID: Joi.string().optional(),
+  R2_ACCESS_KEY_ID: Joi.string().optional(),
+  R2_SECRET_ACCESS_KEY: Joi.string().optional(),
+  R2_BUCKET_NAME: Joi.string().optional(),
+  R2_PUBLIC_DOMAIN: Joi.string().optional(),
 }).unknown(true);

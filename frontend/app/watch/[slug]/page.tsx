@@ -5,13 +5,13 @@ import { getRelatedVideos, getVideoById } from "@/lib/catalog-utils";
 import WatchClient from "@/components/watch/WatchClient";
 
 interface WatchPageProps {
-  params: Promise<{ videoId: string }>;
+  params: Promise<{ slug: string }>;
 }
 
 export async function generateMetadata({ params }: WatchPageProps): Promise<Metadata> {
-  const { videoId } = await params;
+  const { slug } = await params;
   const catalog = await getCatalog();
-  const video = getVideoById(catalog.videos, videoId);
+  const video = getVideoById(catalog.videos, slug);
 
   if (!video) return { title: "Not Found | B28 Entertainment" };
 
@@ -27,9 +27,9 @@ export async function generateMetadata({ params }: WatchPageProps): Promise<Meta
 }
 
 export default async function WatchPage({ params }: WatchPageProps) {
-  const { videoId } = await params;
+  const { slug } = await params;
   const catalog = await getCatalog();
-  const video = getVideoById(catalog.videos, videoId);
+  const video = getVideoById(catalog.videos, slug);
 
   if (!video) notFound();
 
