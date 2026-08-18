@@ -6,26 +6,56 @@
 | Admin dashboard | `backend/dashboard/` | http://localhost:3001 |
 | REST API | `backend/` | http://localhost:4000 |
 
-## Quick start
+## Quick start (one command)
 
 ```powershell
 cd A:\b28
-npm install
+npm install          # once after clone
+npm run start        # every dev session — starts Docker, DB, and all 3 apps
+```
+
+Wait for the green **"dev environment is ready"** banner, then open:
+
+- **Streaming:** http://localhost:3000
+- **Admin:** http://localhost:3001/login (`admin@b28.dev` / `Password123!`)
+- **API docs:** http://localhost:4000/api/docs
+
+### Diagnose without starting
+
+```powershell
+npm run doctor
+```
+
+### Verify all servers (after `npm run start`)
+
+```powershell
+npm run verify
+```
+
+Checks http://localhost:3000, :3001, and :4000 (health, Swagger, catalog API).
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| Site can't be reached on :3000 / :3001 / :4000 | Run `npm run start` from repo root and wait for the ready banner |
+| Port 4000 not reachable (JSON API down) | Docker must be running; run `npm run doctor` then `npm run start` |
+| Port already in use | Run `npm run doctor` - kill stale process: `taskkill /PID <id> /F` |
+| API/login broken but sites load | Start Docker Desktop, then `npm run start` |
+| `db:up:docker` fails | Ensure Docker Desktop is running; scripts live in `scripts/` |
+| Wrong URL | Use **http** not https — streaming `:3000`, admin `:3001`, API `:4000` |
+| Servers stopped | Closing the terminal stops dev servers — run `npm run start` again |
+
+## Manual start (alternative)
+
+```powershell
 npm run db:up:docker
 npm run db:migrate
 npm run db:seed
 npm run dev:all
 ```
 
-Install app dependencies first if needed:
-
-```powershell
-npm install --prefix frontend
-npm install --prefix backend
-npm install --prefix backend/dashboard
-```
-
-## Environment files
+Environment files are auto-created from `.env.example` on `npm run start`. To configure manually:
 
 - `frontend/.env.local` — copy from `frontend/.env.example`
 - `backend/.env` — copy from `backend/.env.example`
