@@ -20,7 +20,7 @@ flowchart LR
 | `/api/catalog`, `/api/sync` | `frontend` (Next.js API routes) |
 | `/api/v1/*`, `/api/docs`, `/health` | `backend` (NestJS) |
 
-Configuration lives in [vercel.json](vercel.json) at the **repo root** (not `frontend/`).
+> **Note:** Vercel Services does not support Next.js Edge middleware. Auth gates run in the Node.js `(protected)` layout instead of `middleware.ts`.
 
 ## Step 1 — Import on Vercel
 
