@@ -5,6 +5,7 @@
   "scripts": {
     "postinstall": "npm install --prefix frontend && npm install --prefix backend && npm install --prefix backend/dashboard",
     "start": "powershell -ExecutionPolicy Bypass -File scripts/dev-up.ps1",
+    "stop": "powershell -ExecutionPolicy Bypass -File scripts/stop-dev.ps1",
     "doctor": "powershell -ExecutionPolicy Bypass -File scripts/doctor.ps1",
     "verify": "powershell -ExecutionPolicy Bypass -File scripts/verify-dev.ps1",
     "dev": "npm run dev --prefix frontend",

@@ -12,6 +12,9 @@ function Ensure-EnvFile($target, $example) {
 
 Write-Host "B28 Oncodex - starting dev environment`n" -ForegroundColor Cyan
 
+# 0. Free dev ports if a previous session is still running
+& "$root\scripts\stop-dev.ps1"
+
 # 1. Preflight
 & "$root\scripts\doctor.ps1" -Strict
 if ($LASTEXITCODE -ne 0) {

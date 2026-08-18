@@ -34,17 +34,19 @@ npm run verify
 
 Checks http://localhost:3000, :3001, and :4000 (health, Swagger, catalog API).
 
+> **Important:** Type `npm run verify` and press Enter. Do not paste the green output lines back into PowerShell — that causes errors like `B28 is not recognized`.
+
 ## Troubleshooting
 
 | Symptom | Fix |
 |---------|-----|
 | Site can't be reached on :3000 / :3001 / :4000 | Run `npm run start` from repo root and wait for the ready banner |
 | Port 4000 not reachable (JSON API down) | Docker must be running; run `npm run doctor` then `npm run start` |
-| Port already in use | Run `npm run doctor` - kill stale process: `taskkill /PID <id> /F` |
+| Port already in use | Run `npm run stop` then `npm run start`, or just `npm run start` (auto-stops stale servers) |
 | API/login broken but sites load | Start Docker Desktop, then `npm run start` |
 | `db:up:docker` fails | Ensure Docker Desktop is running; scripts live in `scripts/` |
 | Wrong URL | Use **http** not https — streaming `:3000`, admin `:3001`, API `:4000` |
-| Servers stopped | Closing the terminal stops dev servers — run `npm run start` again |
+| Pasted verification text causes PowerShell errors | Run the command `npm run verify` — do not copy/paste the output back into the terminal |
 
 ## Manual start (alternative)
 
