@@ -18,7 +18,8 @@
     "db:up:docker": "powershell -ExecutionPolicy Bypass -File scripts/docker-up.ps1",
     "wsl:install": "powershell -ExecutionPolicy Bypass -File scripts/install-wsl.ps1",
     "db:migrate": "npm run prisma:migrate:deploy --prefix backend",
-    "db:seed": "npm run prisma:seed --prefix backend"
+    "db:seed": "npm run prisma:seed --prefix backend",
+    "vercel:env": "powershell -ExecutionPolicy Bypass -File scripts/set-vercel-backend-env.ps1"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
