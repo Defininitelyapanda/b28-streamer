@@ -2,12 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import type { UserMe } from "@/lib/api-client";
 import { isAdminUser } from "@/lib/api-client";
-
-function getAuthApiBase(): string {
-  if (process.env.B28_API_URL) return process.env.B28_API_URL.replace(/\/$/, "");
-  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
-  return "http://localhost:4000/api/v1";
-}
+import { getAuthSecret, getServerApiBase } from "@/lib/server-api-base";
 
 interface ApiSuccess<T> {
   success: true;
@@ -20,7 +15,7 @@ interface ApiError {
 }
 
 async function apiPost<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${getAuthApiBase()}${path}`, {
+  const res = await fetch(`${getServerApiBase()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -31,7 +26,7 @@ async function apiPost<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function apiGet<T>(path: string, accessToken: string): Promise<T> {
-  const res = await fetch(`${getAuthApiBase()}${path}`, {
+  const res = await fetch(`${getServerApiBase()}${path}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   const json = (await res.json()) as ApiSuccess<T> | ApiError;
@@ -45,7 +40,7 @@ async function refreshTokens(refreshToken: string) {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
-  secret: process.env.AUTH_SECRET,
+  secret: getAuthSecret(),
   session: { strategy: "jwt", maxAge: 7 * 24 * 60 * 60 },
   pages: { signIn: "/login" },
   cookies: {

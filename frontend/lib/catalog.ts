@@ -2,6 +2,7 @@ import "server-only";
 
 import { auth } from "@/auth";
 import { SEED_CATALOG } from "@/lib/seed-catalog";
+import { getServerApiBase } from "@/lib/server-api-base";
 import type { CatalogData, CatalogVideo } from "@/lib/types";
 
 declare global {
@@ -9,7 +10,7 @@ declare global {
   var __b28CatalogCache: CatalogData | undefined;
 }
 
-const API_ROOT = process.env.B28_API_URL?.replace(/\/$/, "") ?? "http://localhost:4000";
+const API_BASE = getServerApiBase();
 const CATALOG_REVALIDATE = Number(process.env.CATALOG_REVALIDATE_SECONDS ?? "30");
 
 function defaultCatalog(): CatalogData {
@@ -63,7 +64,7 @@ async function fetchCatalogFromApi(accessToken?: string): Promise<CatalogData | 
   if (!accessToken) return null;
 
   try {
-    const res = await fetch(`${API_ROOT}/api/v1/catalog`, {
+    const res = await fetch(`${API_BASE}/catalog`, {
       headers: { Authorization: `Bearer ${accessToken}` },
       next: { revalidate: CATALOG_REVALIDATE },
     });

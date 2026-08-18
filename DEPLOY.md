@@ -82,8 +82,8 @@ Set for **Production**, **Preview**, and **Development**:
 | Key | Production value |
 |-----|------------------|
 | `NEXT_PUBLIC_API_URL` | `/api/v1` (same-origin; no `localhost`) |
-| `AUTH_SECRET` | Random 32+ char secret for NextAuth session encryption |
-| `AUTH_URL` | `https://YOUR-APP.vercel.app` (production site URL) |
+| `AUTH_SECRET` | **Required** — random 32+ char secret for NextAuth session encryption |
+| `AUTH_URL` | `https://YOUR-APP.vercel.app` (your production site URL) |
 | `GOOGLE_CLIENT_ID` | Same as backend — enables Google OAuth in NextAuth |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret for NextAuth |
 | `YOUTUBE_API_KEY` | Required for YouTube → Postgres sync |

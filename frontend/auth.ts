@@ -2,11 +2,10 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import type { SubscriptionInfo, UserMe } from "@/lib/api-client";
+import { getAuthSecret, getServerApiBase } from "@/lib/server-api-base";
 
 function getAuthApiBase(): string {
-  if (process.env.B28_API_URL) return process.env.B28_API_URL.replace(/\/$/, "");
-  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
-  return "http://localhost:4000/api/v1";
+  return getServerApiBase();
 }
 
 interface ApiSuccess<T> {
@@ -25,8 +24,13 @@ async function apiPost<T>(path: string, body: unknown): Promise<T> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const json = (await res.json()) as ApiSuccess<T> | ApiError;
-  if (!json.success) throw new Error(json.error.message);
+  let json: ApiSuccess<T> | ApiError;
+  try {
+    json = (await res.json()) as ApiSuccess<T> | ApiError;
+  } catch {
+    throw new Error(`API unreachable (${res.status}). Check B28_API_URL / NEXT_PUBLIC_API_URL.`);
+  }
+  if (!json.success) throw new Error(json.error?.message ?? "Authentication failed.");
   return json.data;
 }
 
@@ -61,7 +65,7 @@ async function buildSessionUser(tokens: { accessToken: string; refreshToken: str
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
-  secret: process.env.AUTH_SECRET,
+  secret: getAuthSecret(),
   session: { strategy: "jwt", maxAge: 7 * 24 * 60 * 60 },
   pages: { signIn: "/login" },
   providers: [

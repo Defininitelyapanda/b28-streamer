@@ -41,3 +41,4 @@ backend/prisma/*.db
 
 # IDE
 .cursor/
+.env*

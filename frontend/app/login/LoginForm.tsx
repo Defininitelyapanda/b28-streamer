@@ -41,7 +41,11 @@ export default function LoginForm() {
     });
     setLoading(false);
     if (result?.error) {
-      setError("Invalid email or password");
+      setError(
+        result.error === "Configuration"
+          ? "Auth is misconfigured. Set AUTH_SECRET in your environment."
+          : "Invalid email or password",
+      );
       return;
     }
     router.push(redirect);
