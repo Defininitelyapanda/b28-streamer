@@ -15,7 +15,7 @@
     "backend": {
       "root": "backend",
       "framework": "nestjs",
-      "buildCommand": "npm run prisma:generate && npm run build && ([ -z \"$DATABASE_URL\" ] || npm run prisma:migrate:deploy)"
+      "buildCommand": "npm run prisma:generate && npm run build && ([ -z \"$DATABASE_URL\" ] || (npm run prisma:migrate:deploy && npm run prisma:seed-if-empty))"
     }
   },
   "crons": [
@@ -33,13 +33,6 @@
       }
     },
     {
-      "source": "/api/docs",
-      "destination": {
-        "type": "service",
-        "service": "backend"
-      }
-    },
-    {
       "source": "/api/docs/:path*",
       "destination": {
         "type": "service",
@@ -48,13 +41,6 @@
     },
     {
       "source": "/health/:path*",
-      "destination": {
-        "type": "service",
-        "service": "backend"
-      }
-    },
-    {
-      "source": "/health",
       "destination": {
         "type": "service",
         "service": "backend"

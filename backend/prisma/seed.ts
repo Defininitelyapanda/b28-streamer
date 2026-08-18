@@ -80,8 +80,13 @@ const FEATURE_FLAGS = [
 const SEED_PASSWORD = 'Password123!';
 
 async function seedCatalogVideos() {
-  const catalogPath = path.join(__dirname, '../../frontend/data/catalog.json');
-  if (!fs.existsSync(catalogPath)) {
+  const candidates = [
+    path.join(__dirname, '../../frontend/data/catalog.json'),
+    path.join(process.cwd(), '../frontend/data/catalog.json'),
+    path.join(process.cwd(), 'frontend/data/catalog.json'),
+  ];
+  const catalogPath = candidates.find((p) => fs.existsSync(p));
+  if (!catalogPath) {
     console.log('No frontend/data/catalog.json found — skipping catalog seed.');
     return;
   }

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../health/redis.service';
 
@@ -21,6 +21,13 @@ export class AdminService {
     }
 
     redis = await this.redis.ping();
+
+    if (!db) {
+      throw new ServiceUnavailableException({
+        code: 'DATABASE_UNAVAILABLE',
+        message: 'Database is not available.',
+      });
+    }
 
     const [totalUsers, roleCounts, settings] = await Promise.all([
       this.prisma.user.count({ where: { deletedAt: null } }),
@@ -57,7 +64,7 @@ export class AdminService {
 
     return {
       health: {
-        status: db && (redis || process.env.NODE_ENV !== 'production') ? 'ready' : 'not_ready',
+        status: 'ready',
         checks: { database: db, redis },
       },
       users: { total: totalUsers, byRole },

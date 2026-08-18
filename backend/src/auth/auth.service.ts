@@ -1,12 +1,15 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { RoleName, UserStatus } from '@prisma/client';
+import { randomInt } from 'crypto';
+import { OAuth2Client } from 'google-auth-library';
 import { Request } from 'express';
 import {
   generateSecureToken,
@@ -17,6 +20,7 @@ import {
 import { addDuration } from '../common/token.util';
 import { EmailService } from '../common/email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SettingsService } from '../settings/settings.service';
 import {
   ForgotPasswordDto,
   GoogleAuthDto,
@@ -30,6 +34,7 @@ import {
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 15;
+const MAX_OTP_ATTEMPTS = 5;
 
 @Injectable()
 export class AuthService {
@@ -38,6 +43,7 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private emailService: EmailService,
+    private settingsService: SettingsService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -59,7 +65,7 @@ export class AuthService {
     const passwordHash = await hashPassword(dto.password);
     const autoVerify =
       this.configService.get<string>('AUTH_AUTO_VERIFY') === 'true' ||
-      this.configService.get<string>('NODE_ENV') !== 'production';
+      this.configService.get<string>('NODE_ENV') === 'development';
 
     const user = await this.prisma.user.create({
       data: {
@@ -293,8 +299,12 @@ export class AuthService {
   }
 
   async sendPhoneOtp(dto: SendPhoneOtpDto) {
+    if (!(await this.settingsService.isFeatureEnabled('PHONE_AUTH'))) {
+      throw new ForbiddenException({ code: 'FEATURE_DISABLED', message: 'Phone authentication is not enabled.' });
+    }
+
     const phone = this.normalizePhone(dto.phone);
-    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const code = String(randomInt(100000, 1000000));
     const expiresAt = addDuration(new Date(), '10m');
 
     await this.prisma.otpChallenge.create({
@@ -305,25 +315,38 @@ export class AuthService {
       },
     });
 
-    console.log(`[B28 OTP] Phone ${phone} code: ${code}`);
+    if (this.configService.get<string>('NODE_ENV') !== 'production') {
+      console.log(`[B28 OTP] Phone ${phone} code: ${code}`);
+      return { message: 'Verification code sent.', devCode: code };
+    }
 
-    return { message: 'Verification code sent.', devCode: process.env.NODE_ENV !== 'production' ? code : undefined };
+    return { message: 'Verification code sent.' };
   }
 
   async verifyPhoneOtp(dto: VerifyPhoneOtpDto, req: Request) {
+    if (!(await this.settingsService.isFeatureEnabled('PHONE_AUTH'))) {
+      throw new ForbiddenException({ code: 'FEATURE_DISABLED', message: 'Phone authentication is not enabled.' });
+    }
+
     const phone = this.normalizePhone(dto.phone);
     const challenge = await this.prisma.otpChallenge.findFirst({
       where: { phone, usedAt: null, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: 'desc' },
     });
 
-    if (!challenge || challenge.codeHash !== hashToken(dto.code)) {
-      if (challenge) {
-        await this.prisma.otpChallenge.update({
-          where: { id: challenge.id },
-          data: { attempts: challenge.attempts + 1 },
-        });
-      }
+    if (!challenge) {
+      throw new UnauthorizedException({ code: 'INVALID_OTP', message: 'Invalid or expired verification code.' });
+    }
+
+    if (challenge.attempts >= MAX_OTP_ATTEMPTS) {
+      throw new UnauthorizedException({ code: 'OTP_LOCKED', message: 'Too many failed attempts. Request a new code.' });
+    }
+
+    if (challenge.codeHash !== hashToken(dto.code)) {
+      await this.prisma.otpChallenge.update({
+        where: { id: challenge.id },
+        data: { attempts: challenge.attempts + 1 },
+      });
       throw new UnauthorizedException({ code: 'INVALID_OTP', message: 'Invalid or expired verification code.' });
     }
 
@@ -361,7 +384,11 @@ export class AuthService {
   }
 
   async googleAuth(dto: GoogleAuthDto, req: Request) {
-    const profile = this.parseGoogleCredential(dto);
+    if (!(await this.settingsService.isFeatureEnabled('GOOGLE_AUTH'))) {
+      throw new ForbiddenException({ code: 'FEATURE_DISABLED', message: 'Google authentication is not enabled.' });
+    }
+
+    const profile = await this.parseGoogleCredential(dto);
     const providerId = profile.googleId;
     const email = profile.email.toLowerCase();
 
@@ -413,13 +440,32 @@ export class AuthService {
     return `+${digits}`;
   }
 
-  private parseGoogleCredential(dto: GoogleAuthDto) {
-    if (dto.email && dto.googleId) {
-      return {
-        email: dto.email,
-        googleId: dto.googleId,
-        displayName: dto.displayName ?? dto.email.split('@')[0],
-      };
+  private async parseGoogleCredential(dto: GoogleAuthDto) {
+    const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
+
+    if (clientId) {
+      try {
+        const client = new OAuth2Client(clientId);
+        const ticket = await client.verifyIdToken({ idToken: dto.idToken, audience: clientId });
+        const payload = ticket.getPayload();
+        if (!payload?.email || !payload.sub) {
+          throw new BadRequestException({ code: 'INVALID_GOOGLE_TOKEN', message: 'Invalid Google credential.' });
+        }
+        return {
+          email: payload.email,
+          googleId: payload.sub,
+          displayName: payload.name ?? payload.email.split('@')[0],
+        };
+      } catch {
+        throw new BadRequestException({ code: 'INVALID_GOOGLE_TOKEN', message: 'Invalid Google credential.' });
+      }
+    }
+
+    if (this.configService.get<string>('NODE_ENV') === 'production') {
+      throw new BadRequestException({
+        code: 'GOOGLE_NOT_CONFIGURED',
+        message: 'Google sign-in is not configured on the server.',
+      });
     }
 
     try {

@@ -58,18 +58,21 @@ Set for **Production**, **Preview**, and **Development**:
 
 | Key | Example / notes |
 |-----|-----------------|
-| `DATABASE_URL` | Postgres connection string ([Vercel Postgres](https://vercel.com/docs/storage/vercel-postgres) or [Neon](https://neon.tech)) |
+| `DATABASE_URL` | Postgres connection string ([Vercel Postgres](https://vercel.com/docs/storage/vercel-postgres) or [Neon](https://neon.tech)). Use `?pgbouncer=true` for pooled serverless connections. |
 | `JWT_ACCESS_SECRET` | Min 32 characters |
-| `JWT_REFRESH_SECRET` | Min 32 characters |
+| `AUTH_AUTO_VERIFY` | Set to `true` until `RESEND_API_KEY` is configured (otherwise new users cannot verify email) |
 | `NODE_ENV` | `production` |
 
 ### Backend (optional)
 
 | Key | Notes |
 |-----|-------|
-| `REDIS_URL` | Upstash Redis or similar; health check tolerates missing Redis in production |
+| `REDIS_URL` | Optional — health reports `redis: false` when unset; readiness only requires database |
+| `GOOGLE_CLIENT_ID` | Required for Google sign-in (must match frontend `NEXT_PUBLIC_GOOGLE_CLIENT_ID`) |
+| `RESEND_API_KEY` | Sends verification/reset emails in production (console fallback when unset) |
+| `EMAIL_FROM` | Sender address for Resend |
 | `CORS_ORIGIN` | Defaults work when frontend and API share the same Vercel domain |
-| `SWAGGER_ENABLED` | `true` to expose `/api/docs` |
+| `SWAGGER_ENABLED` | `false` by default in production |
 
 ### Frontend
 
@@ -95,7 +98,7 @@ npm run prisma:migrate:deploy
 npm run prisma:seed
 ```
 
-Or use Vercel CLI / a CI job with `DATABASE_URL` set.
+The Vercel backend build also runs `prisma:seed-if-empty` automatically when `DATABASE_URL` is set (seeds roles/users only on an empty database).
 
 ## Step 4 — Verify live site
 

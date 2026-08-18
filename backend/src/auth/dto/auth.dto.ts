@@ -23,18 +23,6 @@ export class VerifyPhoneOtpDto {
 export class GoogleAuthDto {
   @IsString()
   idToken!: string;
-
-  @IsOptional()
-  @IsEmail()
-  email?: string;
-
-  @IsOptional()
-  @IsString()
-  displayName?: string;
-
-  @IsOptional()
-  @IsString()
-  googleId?: string;
 }
 
 export class RegisterDto {

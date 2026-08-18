@@ -33,8 +33,7 @@ export class HealthController {
 
     redis = await this.redis.ping();
 
-    const isDev = process.env.NODE_ENV !== 'production';
-    const ready = db && (redis || isDev);
+    const ready = db;
 
     return {
       status: ready ? 'ready' : 'not_ready',

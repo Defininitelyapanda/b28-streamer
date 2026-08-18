@@ -52,11 +52,15 @@ export class UsersService {
         email: anonymizedEmail,
         status: UserStatus.DELETED,
         deletedAt: new Date(),
-        passwordHash: '',
       },
     });
 
     await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    await this.prisma.userSession.updateMany({
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
     });

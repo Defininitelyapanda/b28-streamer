@@ -8,15 +8,25 @@ export class RedisService implements OnModuleDestroy {
 
   constructor(private configService: ConfigService) {}
 
+  private getRedisUrl(): string | undefined {
+    return this.configService.get<string>('REDIS_URL');
+  }
+
   getClient(): Redis {
+    const url = this.getRedisUrl();
+    if (!url) {
+      throw new Error('REDIS_URL is not configured');
+    }
     if (!this.client) {
-      const url = this.configService.get<string>('REDIS_URL', 'redis://localhost:6379');
       this.client = new Redis(url, { maxRetriesPerRequest: 1, lazyConnect: true });
     }
     return this.client;
   }
 
   async ping(): Promise<boolean> {
+    if (!this.getRedisUrl()) {
+      return false;
+    }
     try {
       const client = this.getClient();
       if (client.status !== 'ready') {

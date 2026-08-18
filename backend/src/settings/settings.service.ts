@@ -93,6 +93,11 @@ export class SettingsService {
     }
   }
 
+  async isFeatureEnabled(key: string): Promise<boolean> {
+    const flag = await this.prisma.featureFlag.findUnique({ where: { key } });
+    return flag?.enabled ?? false;
+  }
+
   async validateRevenueSplit() {
     const filmmaker = await this.prisma.platformSetting.findUnique({
       where: { key: 'revenue.filmmaker_percentage' },

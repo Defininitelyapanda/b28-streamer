@@ -9,6 +9,13 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  if (process.env.VERCEL === '1') {
+    const httpAdapter = app.getHttpAdapter();
+    if (httpAdapter.getType() === 'express') {
+      httpAdapter.getInstance().set('trust proxy', 1);
+    }
+  }
+
   const configService = app.get(ConfigService);
   const port = configService.get<number>('API_PORT', 4000);
   const corsOrigin = configService.get<string>('CORS_ORIGIN', '');
@@ -24,7 +31,10 @@ async function bootstrap() {
       credentials: true,
     });
   }
-  const swaggerEnabled = configService.get<string>('SWAGGER_ENABLED', 'true') === 'true';
+  const nodeEnv = configService.get<string>('NODE_ENV', 'development');
+  const swaggerDefault = nodeEnv === 'production' ? 'false' : 'true';
+  const swaggerEnabled =
+    configService.get<string>('SWAGGER_ENABLED', swaggerDefault) === 'true';
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -48,7 +58,6 @@ async function bootstrap() {
   }
 
   await app.listen(port);
-  // eslint-disable-next-line no-console
   console.log(`B28 Oncodex API running on http://localhost:${port}`);
 }
 

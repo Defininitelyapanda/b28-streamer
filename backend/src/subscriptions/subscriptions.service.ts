@@ -1,15 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import {
   PaymentMethodType,
   SubscriptionPlan,
   SubscriptionStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { SettingsService } from '../settings/settings.service';
 import { AddPaymentMethodDto, SubscribeDto } from './dto/subscriptions.dto';
 
 @Injectable()
 export class SubscriptionsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private settingsService: SettingsService,
+  ) {}
 
   async getOffers() {
     const keys = [
@@ -97,6 +101,13 @@ export class SubscriptionsService {
   async subscribe(userId: string, dto: SubscribeDto) {
     if (dto.plan === SubscriptionPlan.FREE_WITH_ADS) {
       return this.continueWithAds(userId);
+    }
+
+    if (!(await this.settingsService.isFeatureEnabled('PREMIUM'))) {
+      throw new ForbiddenException({
+        code: 'FEATURE_DISABLED',
+        message: 'Premium subscriptions are not enabled.',
+      });
     }
 
     if (dto.paymentMethodId) {

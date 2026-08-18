@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
@@ -25,6 +25,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
+    if (payload.sessionId) {
+      const session = await this.prisma.userSession.findUnique({
+        where: { id: payload.sessionId },
+      });
+      if (!session || session.revokedAt || session.userId !== payload.sub) {
+        throw new UnauthorizedException({ code: 'SESSION_REVOKED', message: 'Session expired or revoked.' });
+      }
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       include: {
@@ -43,7 +52,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
 
     if (!user || user.status !== 'ACTIVE' || user.deletedAt) {
-      throw new Error('Invalid user');
+      throw new UnauthorizedException({ code: 'UNAUTHORIZED', message: 'Invalid or inactive user.' });
     }
 
     const roles = user.roles.map((ur) => ur.role.name);
