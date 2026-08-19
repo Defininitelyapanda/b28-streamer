@@ -113,9 +113,6 @@ export class SubscriptionsService {
 
     const premiumEnabled = await this.settingsService.isFeatureEnabled('PREMIUM');
     const gatewayEnabled = await this.settingsService.isPaymentsGatewayEnabled();
-    // #region agent log
-    fetch('http://127.0.0.1:7533/ingest/e9d0989d-a309-403f-b88e-6328f60ff267',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9ead3f'},body:JSON.stringify({sessionId:'9ead3f',location:'subscriptions.service.ts:subscribe',message:'subscribe guard state',data:{premiumEnabled,gatewayEnabled,hasPaymentMethod:Boolean(dto.paymentMethodId),plan:dto.plan},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
 
     if (!premiumEnabled) {
       throw new ForbiddenException({

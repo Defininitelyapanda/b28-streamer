@@ -67,18 +67,12 @@ async function fetchCatalogFromApi(): Promise<CatalogData | null> {
     const res = await fetch(`${API_BASE}/catalog`, {
       next: { revalidate: CATALOG_REVALIDATE },
     });
-    // #region agent log
-    fetch('http://127.0.0.1:7533/ingest/e9d0989d-a309-403f-b88e-6328f60ff267',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9ead3f'},body:JSON.stringify({sessionId:'9ead3f',location:'catalog.ts:fetchCatalogFromApi',message:'frontend catalog fetch',data:{apiBase:API_BASE,status:res.status,ok:res.ok},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
     if (!res.ok) return null;
     const json = (await res.json()) as { success?: boolean; data?: CatalogData };
-    if (json.success && json.data?.videos?.length) {
-      // #region agent log
-      fetch('http://127.0.0.1:7533/ingest/e9d0989d-a309-403f-b88e-6328f60ff267',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9ead3f'},body:JSON.stringify({sessionId:'9ead3f',location:'catalog.ts:fetchCatalogFromApi',message:'frontend catalog api success',data:{videoCount:json.data.videos.length,source:json.data.source},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
+    if (json.success && json.data) {
       return json.data;
     }
-    if (!json.success && (json as CatalogData).videos?.length) {
+    if (!json.success && (json as CatalogData).videos) {
       return json as CatalogData;
     }
   } catch {
@@ -138,7 +132,7 @@ async function fetchRelatedBySlugFromApi(
     );
     if (!res.ok) return null;
     const json = (await res.json()) as { success?: boolean; data?: CatalogVideo[] };
-    if (json.success && json.data?.length) {
+    if (json.success && Array.isArray(json.data)) {
       return json.data.map((item, index) =>
         normalizeMovie(item as Partial<CatalogVideo> & Record<string, unknown>, index),
       );
@@ -163,7 +157,7 @@ async function fetchRelatedBySlug(
   limit = 12,
 ): Promise<CatalogVideo[]> {
   const fromApi = await fetchRelatedBySlugFromApi(slug, limit);
-  if (fromApi?.length) return fromApi;
+  if (fromApi !== null) return fromApi;
 
   const videos = await resolveFallbackVideos();
   return getRelatedVideos(videos, video, limit);
@@ -179,10 +173,6 @@ export const getCatalog = cache(async function getCatalog(): Promise<CatalogData
     globalThis.__b28CatalogCache = fromApi;
     return fromApi;
   }
-
-  // #region agent log
-  fetch('http://127.0.0.1:7533/ingest/e9d0989d-a309-403f-b88e-6328f60ff267',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9ead3f'},body:JSON.stringify({sessionId:'9ead3f',location:'catalog.ts:getCatalog',message:'frontend catalog fallback',data:{nodeEnv:process.env.NODE_ENV,fallback:'seed-or-local'},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
-  // #endregion
 
   const local = await loadLocalCatalog();
   if (local) {

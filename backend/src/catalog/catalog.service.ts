@@ -69,9 +69,6 @@ export class CatalogService {
       limit: number;
       total: number;
     }>(cacheKey);
-    // #region agent log
-    fetch('http://127.0.0.1:7533/ingest/e9d0989d-a309-403f-b88e-6328f60ff267',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9ead3f'},body:JSON.stringify({sessionId:'9ead3f',location:'catalog.service.ts:getPublicCatalog',message:'catalog list cache lookup',data:{cacheKey,cacheHit:cached!==null,videoCount:cached?.videos?.length??null},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
     if (cached) return cached;
 
     const where: Prisma.CatalogVideoWhereInput = { published: true };
@@ -102,10 +99,6 @@ export class CatalogService {
       limit,
       total,
     };
-
-    // #region agent log
-    fetch('http://127.0.0.1:7533/ingest/e9d0989d-a309-403f-b88e-6328f60ff267',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9ead3f'},body:JSON.stringify({sessionId:'9ead3f',location:'catalog.service.ts:getPublicCatalog',message:'catalog list db fetch',data:{total,videoCount:videos.length,genreKey},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
 
     await this.cache.set(cacheKey, result, 60);
     return result;

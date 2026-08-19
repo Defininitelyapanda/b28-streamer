@@ -26,7 +26,6 @@ describe('B28 Oncodex API (e2e)', () => {
       if (requireTestDb) {
         throw new Error('Database required for e2e tests (REQUIRE_TEST_DB=true).');
       }
-      // eslint-disable-next-line no-console
       console.warn('Skipping e2e tests: database not available. Run scripts/setup-db.sql and npm run prisma:seed first.');
       return;
     }
@@ -34,6 +33,8 @@ describe('B28 Oncodex API (e2e)', () => {
     if (!process.env.CRON_SECRET) {
       process.env.CRON_SECRET = 'test-cron-secret';
     }
+    process.env.AUTH_AUTO_VERIFY = 'false';
+    process.env.NODE_ENV = 'test';
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -153,6 +154,16 @@ describe('B28 Oncodex API (e2e)', () => {
       .post('/api/v1/subscriptions/subscribe')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ plan: 'MONTHLY' })
+      .expect(403)
+      .expect((res) => {
+        expect(res.body.error.code).toBe('FEATURE_DISABLED');
+      });
+  });
+
+  itIfDb('POST /api/v1/auth/google rejects when GOOGLE_AUTH feature is disabled', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/google')
+      .send({ idToken: 'eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0ZXN0LXVzZXIiLCJlbWFpbCI6InRlc3RAZ28uZGV2In0.' })
       .expect(403)
       .expect((res) => {
         expect(res.body.error.code).toBe('FEATURE_DISABLED');

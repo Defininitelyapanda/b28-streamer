@@ -35,6 +35,7 @@ jobs:
       DATABASE_URL: postgresql://b28:b28@localhost:5434/b28_oncodex_test
       JWT_ACCESS_SECRET: ci-test-access-secret-minimum-32-chars
       NODE_ENV: test
+      AUTH_AUTO_VERIFY: 'false'
       REQUIRE_TEST_DB: 'true'
       CRON_SECRET: ci-test-cron-secret
 

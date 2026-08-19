@@ -250,8 +250,11 @@ async function main() {
     await ensureSubscription(quickAdmin.id, 'FREE_WITH_ADS', true);
   }
 
-  for (const flag of ['PREMIUM', 'MPESA', 'PAYPAL', 'CARDS', 'ADS', 'PHONE_AUTH', 'GOOGLE_AUTH'] as const) {
-    await prisma.featureFlag.updateMany({ where: { key: flag }, data: { enabled: true } });
+  if (process.env.SEED_ENABLE_PAYMENT_FLAGS === 'true') {
+    for (const flag of ['PREMIUM', 'MPESA', 'PAYPAL', 'CARDS', 'ADS', 'PHONE_AUTH', 'GOOGLE_AUTH'] as const) {
+      await prisma.featureFlag.updateMany({ where: { key: flag }, data: { enabled: true } });
+    }
+    console.log('SEED_ENABLE_PAYMENT_FLAGS=true — payment/auth feature flags enabled for local dev.');
   }
 
   for (const setting of DEFAULT_SETTINGS) {
@@ -266,7 +269,7 @@ async function main() {
     await prisma.featureFlag.upsert({
       where: { key: flag.key },
       create: flag,
-      update: { description: flag.description },
+      update: { description: flag.description, enabled: flag.enabled },
     });
   }
 

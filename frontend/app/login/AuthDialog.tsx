@@ -99,7 +99,7 @@ export default function AuthDialog({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onBack, mode, persona]);
+  }, [onBack, mode, persona, emailField.inputRef]);
 
   async function completeSignIn(authMode: AuthMode) {
     const session = await getSession();

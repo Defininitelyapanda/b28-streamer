@@ -42,19 +42,13 @@ export class CacheService implements OnModuleDestroy {
           await client.connect();
         }
         await client.setex(key, ttl, payload);
-        // #region agent log
-        fetch('http://127.0.0.1:7533/ingest/e9d0989d-a309-403f-b88e-6328f60ff267',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9ead3f'},body:JSON.stringify({sessionId:'9ead3f',location:'cache.service.ts:set',message:'cache set redis',data:{key,backend:'redis'},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
-        // #endregion
         return;
-      } catch (error) {
+      } catch {
         this.logger.warn(`Redis set failed for ${key}, using memory fallback`);
       }
     }
 
     this.memory.set(key, { value: payload, expiresAt: Date.now() + ttl * 1000 });
-    // #region agent log
-    fetch('http://127.0.0.1:7533/ingest/e9d0989d-a309-403f-b88e-6328f60ff267',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9ead3f'},body:JSON.stringify({sessionId:'9ead3f',location:'cache.service.ts:set',message:'cache set memory',data:{key,backend:useRedis?'memory-fallback':'memory'},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
   }
 
   async del(key: string): Promise<void> {
@@ -87,7 +81,7 @@ export class CacheService implements OnModuleDestroy {
             await client.del(...keys);
           }
         } while (cursor !== '0');
-      } catch (error) {
+      } catch {
         this.logger.warn(`Redis invalidate failed for ${prefix}*, using memory fallback`);
       }
     }
