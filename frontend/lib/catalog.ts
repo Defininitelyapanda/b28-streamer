@@ -1,6 +1,8 @@
 import "server-only";
 
+import { cache } from "react";
 import { auth } from "@/auth";
+import { getRelatedVideos, getVideoById } from "@/lib/catalog-utils";
 import { SEED_CATALOG } from "@/lib/seed-catalog";
 import { getServerApiBase } from "@/lib/server-api-base";
 import type { CatalogData, CatalogVideo } from "@/lib/types";
@@ -23,13 +25,13 @@ function defaultCatalog(): CatalogData {
 
 export function normalizeMovie(
   item: Partial<CatalogVideo> & Record<string, unknown>,
-  fallbackIndex = 0
+  fallbackIndex = 0,
 ): CatalogVideo {
   const id = String(item.id || item.slug || item.videoId || `movie-${fallbackIndex}`);
   const title = String(item.title || item.name || "Untitled movie");
   const genre = String(item.genre || item.category || "Drama");
   const desc = String(
-    item.desc || item.description || item.summary || "No description available."
+    item.desc || item.description || item.summary || "No description available.",
   );
   const date = String(item.date || item.year || item.release_date || "2026").slice(0, 10);
   const rating = String(item.rating || item.score || (Math.random() * 2 + 7).toFixed(1));
@@ -98,7 +100,84 @@ async function loadLocalCatalog(): Promise<CatalogData | null> {
   return null;
 }
 
-export async function getCatalog(): Promise<CatalogData> {
+async function resolveFallbackVideos(): Promise<CatalogVideo[]> {
+  const local = await loadLocalCatalog();
+  if (local?.videos.length) return local.videos;
+  return defaultCatalog().videos;
+}
+
+async function fetchVideoBySlugFromApi(
+  slug: string,
+  accessToken?: string,
+): Promise<CatalogVideo | null> {
+  if (!accessToken) return null;
+
+  try {
+    const res = await fetch(`${API_BASE}/catalog/videos/${encodeURIComponent(slug)}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      next: { revalidate: CATALOG_REVALIDATE },
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { success?: boolean; data?: CatalogVideo };
+    if (json.success && json.data) {
+      return normalizeMovie(json.data as Partial<CatalogVideo> & Record<string, unknown>);
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+async function fetchRelatedBySlugFromApi(
+  slug: string,
+  accessToken?: string,
+  limit = 12,
+): Promise<CatalogVideo[] | null> {
+  if (!accessToken) return null;
+
+  try {
+    const res = await fetch(
+      `${API_BASE}/catalog/videos/${encodeURIComponent(slug)}/related?limit=${limit}`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        next: { revalidate: CATALOG_REVALIDATE },
+      },
+    );
+    if (!res.ok) return null;
+    const json = (await res.json()) as { success?: boolean; data?: CatalogVideo[] };
+    if (json.success && json.data?.length) {
+      return json.data.map((item, index) =>
+        normalizeMovie(item as Partial<CatalogVideo> & Record<string, unknown>, index),
+      );
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+async function fetchVideoBySlug(slug: string, accessToken?: string): Promise<CatalogVideo | null> {
+  const fromApi = await fetchVideoBySlugFromApi(slug, accessToken);
+  if (fromApi) return fromApi;
+
+  const videos = await resolveFallbackVideos();
+  return getVideoById(videos, slug) ?? null;
+}
+
+async function fetchRelatedBySlug(
+  slug: string,
+  video: CatalogVideo,
+  accessToken?: string,
+  limit = 12,
+): Promise<CatalogVideo[]> {
+  const fromApi = await fetchRelatedBySlugFromApi(slug, accessToken, limit);
+  if (fromApi?.length) return fromApi;
+
+  const videos = await resolveFallbackVideos();
+  return getRelatedVideos(videos, video, limit);
+}
+
+export const getCatalog = cache(async function getCatalog(): Promise<CatalogData> {
   const session = await auth();
   const accessToken = session?.accessToken;
 
@@ -118,7 +197,17 @@ export async function getCatalog(): Promise<CatalogData> {
   }
 
   return defaultCatalog();
-}
+});
+
+export const getWatchPageData = cache(async function getWatchPageData(slug: string) {
+  const session = await auth();
+  const accessToken = session?.accessToken;
+
+  const video = await fetchVideoBySlug(slug, accessToken);
+  const related = video ? await fetchRelatedBySlug(slug, video, accessToken) : [];
+
+  return { video, related, session };
+});
 
 export async function saveCatalog(catalog: CatalogData): Promise<void> {
   globalThis.__b28CatalogCache = catalog;

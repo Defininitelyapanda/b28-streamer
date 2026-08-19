@@ -9,6 +9,7 @@ import { CatalogModule } from './catalog/catalog.module';
 import { envValidationSchema } from './config/env.validation';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
+import { FilmmakersModule } from './filmmakers/filmmakers.module';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RolesModule } from './roles/roles.module';
@@ -37,6 +38,7 @@ import { UsersModule } from './users/users.module';
     SettingsModule,
     AuditModule,
     AdminModule,
+    FilmmakersModule,
     HealthModule,
   ],
   providers: [

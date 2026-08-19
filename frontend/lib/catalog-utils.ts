@@ -9,13 +9,53 @@ export function shuffle<T>(list: T[]): T[] {
   return arr;
 }
 
+export function scoreVideo(v: CatalogVideo): number {
+  return parseFloat(v.rating || "0") || 0;
+}
+
+function compareVideos(a: CatalogVideo, b: CatalogVideo): number {
+  const scoreDiff = scoreVideo(b) - scoreVideo(a);
+  if (Math.abs(scoreDiff) > 0.3) return scoreDiff;
+  if (a.type === "film" && b.type !== "film") return -1;
+  if (b.type === "film" && a.type !== "film") return 1;
+  return b.date.localeCompare(a.date);
+}
+
+export function pickPopularVideos(videos: CatalogVideo[], limit = 16): CatalogVideo[] {
+  const sorted = [...videos].sort(compareVideos);
+  const seen = new Set<string>();
+  const picked: CatalogVideo[] = [];
+
+  for (const video of sorted) {
+    const key = video.seriesGroup || video.id;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    picked.push(video);
+    if (picked.length >= limit) break;
+  }
+
+  if (picked.length < limit) {
+    for (const video of sorted) {
+      if (picked.some((p) => p.id === video.id)) continue;
+      picked.push(video);
+      if (picked.length >= limit) break;
+    }
+  }
+
+  return picked;
+}
+
+export function sortFeaturedVideos(videos: CatalogVideo[], limit = 6): CatalogVideo[] {
+  return [...videos].sort(compareVideos).slice(0, limit);
+}
+
 export function getVideoById(videos: CatalogVideo[], videoId: string): CatalogVideo | undefined {
   return videos.find((v) => v.videoId === videoId || v.id === videoId);
 }
 
 export function filterVideos(
   videos: CatalogVideo[],
-  filters: { genre?: string; decade?: string; type?: string; query?: string }
+  filters: { genre?: string; decade?: string; type?: string; query?: string },
 ): CatalogVideo[] {
   let result = [...videos];
 
@@ -44,7 +84,7 @@ export function filterVideos(
         v.title.toLowerCase().includes(q) ||
         v.genre.toLowerCase().includes(q) ||
         v.desc.toLowerCase().includes(q) ||
-        v.seriesGroup.toLowerCase().includes(q)
+        v.seriesGroup.toLowerCase().includes(q),
     );
   }
 

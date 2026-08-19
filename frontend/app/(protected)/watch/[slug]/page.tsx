@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { getCatalog } from "@/lib/catalog";
-import { getRelatedVideos, getVideoById } from "@/lib/catalog-utils";
+import { notFound, redirect } from "next/navigation";
+import { getWatchPageData } from "@/lib/catalog";
+import { canStream, resolveWatchDestination } from "@/lib/streaming-access";
+import { fetchPlaybackInfo } from "@/lib/streaming-server";
 import WatchClient from "@/components/watch/WatchClient";
 
 interface WatchPageProps {
@@ -10,8 +11,7 @@ interface WatchPageProps {
 
 export async function generateMetadata({ params }: WatchPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const catalog = await getCatalog();
-  const video = getVideoById(catalog.videos, slug);
+  const { video } = await getWatchPageData(slug);
 
   if (!video) return { title: "Not Found | B28 Entertainment" };
 
@@ -28,12 +28,27 @@ export async function generateMetadata({ params }: WatchPageProps): Promise<Meta
 
 export default async function WatchPage({ params }: WatchPageProps) {
   const { slug } = await params;
-  const catalog = await getCatalog();
-  const video = getVideoById(catalog.videos, slug);
+  const { video, related, session } = await getWatchPageData(slug);
 
   if (!video) notFound();
 
-  const related = getRelatedVideos(catalog.videos, video);
+  const roles = session?.user?.roles ?? [];
+  const watchPath = `/watch/${encodeURIComponent(slug)}`;
+  const upsellDestination = resolveWatchDestination(session?.subscription, roles, watchPath);
+  if (upsellDestination) redirect(upsellDestination);
 
-  return <WatchClient video={video} allVideos={related} />;
+  const canWatch = canStream(session?.subscription, roles);
+  const initialPlayback =
+    canWatch && session?.accessToken
+      ? await fetchPlaybackInfo(slug, session.accessToken)
+      : null;
+
+  return (
+    <WatchClient
+      video={video}
+      allVideos={related}
+      canWatch={canWatch}
+      initialPlayback={initialPlayback}
+    />
+  );
 }

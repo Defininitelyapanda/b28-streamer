@@ -226,6 +226,35 @@ export async function syncYoutubeCatalog() {
   });
 }
 
+export interface FilmmakerApplication {
+  id: string;
+  userId: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  message: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+  email?: string;
+  displayName?: string | null;
+}
+
+export async function listFilmmakerApplications(status?: string) {
+  const query = status ? `?status=${encodeURIComponent(status)}` : "";
+  return apiRequest<FilmmakerApplication[]>(`/admin/filmmakers/applications${query}`);
+}
+
+export async function approveFilmmakerApplication(id: string) {
+  return apiRequest<FilmmakerApplication>(`/admin/filmmakers/applications/${id}/approve`, {
+    method: "POST",
+  });
+}
+
+export async function rejectFilmmakerApplication(id: string, message?: string) {
+  return apiRequest<FilmmakerApplication>(`/admin/filmmakers/applications/${id}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });
+}
+
 export async function updateCatalogVideo(
   slug: string,
   patch: Partial<{

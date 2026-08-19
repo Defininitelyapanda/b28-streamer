@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { GENRES } from "@/lib/types";
 import { useAuth } from "@/lib/auth-context";
+import { canStream } from "@/lib/streaming-access";
 
 function NavbarContent() {
   const pathname = usePathname();
@@ -15,6 +16,10 @@ function NavbarContent() {
   const [syncStatus, setSyncStatus] = useState("");
 
   const browseGenre = searchParams.get("genre");
+  const isFilmmaker = user?.roles.some((role) =>
+    ["FILMMAKER", "ADMIN", "SUPER_ADMIN", "CONTENT_ADMIN"].includes(role),
+  );
+  const canWatch = canStream(subscription, user?.roles ?? []);
 
   useEffect(() => {
     fetch("/api/catalog")
@@ -79,6 +84,14 @@ function NavbarContent() {
         >
           Browse
         </Link>
+        {isFilmmaker && (
+          <Link
+            href="/filmmaker"
+            className={`nav-btn-sm ${pathname === "/filmmaker" ? "nav-btn-active" : ""}`}
+          >
+            Filmmaker
+          </Link>
+        )}
       </nav>
 
       <form
@@ -103,11 +116,7 @@ function NavbarContent() {
       <div className="flex shrink-0 items-center gap-2">
         {user ? (
           <>
-            {subscription?.isPremium ? (
-              <span className="rounded-full bg-accent/20 px-2 py-0.5 text-[0.62rem] font-bold uppercase text-accent">
-                Premium
-              </span>
-            ) : (
+            {!canWatch && (
               <Link href="/offers" className="nav-btn-sm text-[0.65rem]">
                 Upgrade
               </Link>

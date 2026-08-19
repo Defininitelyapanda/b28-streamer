@@ -19,6 +19,7 @@ import {
 } from '../common/crypto.util';
 import { addDuration } from '../common/token.util';
 import { EmailService } from '../common/email/email.service';
+import { FilmmakersService } from '../filmmakers/filmmakers.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
 import {
@@ -44,6 +45,7 @@ export class AuthService {
     private configService: ConfigService,
     private emailService: EmailService,
     private settingsService: SettingsService,
+    private filmmakersService: FilmmakersService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -52,10 +54,8 @@ export class AuthService {
       throw new ConflictException({ code: 'EMAIL_IN_USE', message: 'Unable to create account with provided details.' });
     }
 
-    const roleNames =
-      dto.accountType === 'FILMMAKER'
-        ? [RoleName.FILMMAKER, RoleName.STREAMER]
-        : [RoleName.STREAMER];
+    const isFilmmakerSignup = dto.accountType === 'FILMMAKER';
+    const roleNames = [RoleName.STREAMER];
 
     const roles = await this.prisma.role.findMany({ where: { name: { in: roleNames } } });
     if (roles.length !== roleNames.length) {
@@ -86,6 +86,10 @@ export class AuthService {
         },
       },
     });
+
+    if (isFilmmakerSignup) {
+      await this.filmmakersService.createApplication(user.id);
+    }
 
     if (!autoVerify) {
       await this.createEmailVerificationToken(user.id, user.email);

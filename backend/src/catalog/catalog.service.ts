@@ -72,6 +72,28 @@ export class CatalogService {
     return record;
   }
 
+  async getVideoBySlug(slug: string): Promise<CatalogVideoDto> {
+    const record = await this.findBySlug(slug);
+    return this.toDto(record);
+  }
+
+  async getRelatedBySlug(slug: string, limit = 12): Promise<CatalogVideoDto[]> {
+    const current = await this.findBySlug(slug);
+    const take = Math.min(24, Math.max(1, limit));
+
+    const videos = await this.prisma.catalogVideo.findMany({
+      where: {
+        published: true,
+        slug: { not: slug },
+        genre: current.genre,
+      },
+      orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }],
+      take,
+    });
+
+    return videos.map((v) => this.toDto(v));
+  }
+
   async listAll() {
     const videos = await this.prisma.catalogVideo.findMany({
       orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],

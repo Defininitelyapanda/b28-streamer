@@ -34,7 +34,7 @@ export interface SubscriptionOffers {
   currency: string;
   monthly: { plan: string; price: number; label: string; adsEnabled: boolean };
   annual: { plan: string; price: number; discountPercent: number; label: string; adsEnabled: boolean };
-  free: { plan: string; price: number; label: string; adsEnabled: boolean };
+  free?: { plan: string; price: number; label: string; adsEnabled: boolean };
   paymentMethods: string[];
 }
 
@@ -165,8 +165,19 @@ export async function subscribe(plan: string, paymentMethodId?: string) {
   });
 }
 
-export async function continueWithAds() {
-  return apiRequest<SubscriptionInfo>("/subscriptions/continue-with-ads", { method: "POST" });
+export interface FilmmakerApplication {
+  id: string;
+  userId: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  message: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+  email?: string;
+  displayName?: string | null;
+}
+
+export async function getMyFilmmakerApplication(): Promise<FilmmakerApplication | null> {
+  return apiRequest<FilmmakerApplication | null>("/filmmakers/me/application");
 }
 
 export async function listPaymentMethods() {

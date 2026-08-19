@@ -125,7 +125,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       : []),
   ],
   callbacks: {
-    async jwt({ token, user, account, trigger }) {
+    async jwt({ token, user, account, trigger, session }) {
       if (account?.provider === "google" && account.id_token) {
         try {
           const tokens = await apiPost<{ accessToken: string; refreshToken: string }>("/auth/google", {
@@ -168,10 +168,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.refreshToken = undefined;
         }
       } else if (trigger === "update" && token.accessToken) {
-        token.subscription = await apiGet<SubscriptionInfo>(
-          "/subscriptions/me",
-          token.accessToken as string,
-        );
+        const updateData = session as { subscription?: SubscriptionInfo } | undefined;
+        if (updateData?.subscription) {
+          token.subscription = updateData.subscription;
+        } else {
+          token.subscription = await apiGet<SubscriptionInfo>(
+            "/subscriptions/me",
+            token.accessToken as string,
+          );
+        }
+        try {
+          const me = await apiGet<UserMe>("/users/me", token.accessToken as string);
+          token.roles = me.roles;
+        } catch {
+          // keep existing roles
+        }
       }
 
       return token;

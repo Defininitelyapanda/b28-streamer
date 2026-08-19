@@ -5,7 +5,6 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
 import {
   SUBSCRIPTION_REQUIREMENTS_KEY,
   SubscriptionRequirement,
@@ -21,6 +20,13 @@ export class SubscriptionGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    if (
+      process.env.DEV_BYPASS_STREAMING === 'true' &&
+      process.env.NODE_ENV !== 'production'
+    ) {
+      return true;
+    }
+
     const requirement = this.reflector.getAllAndOverride<SubscriptionRequirement>(
       SUBSCRIPTION_REQUIREMENTS_KEY,
       [context.getHandler(), context.getClass()],
@@ -36,12 +42,8 @@ export class SubscriptionGuard implements CanActivate {
       throw new ForbiddenException({ code: 'UNAUTHORIZED', message: 'Authentication required.' });
     }
 
-    const sub = await this.subscriptionsService.getMySubscription(user.id);
-
     if (requirement === SubscriptionRequirement.STREAMING) {
-      const hasAccess =
-        sub.status === SubscriptionStatus.ACTIVE &&
-        (sub.plan === SubscriptionPlan.FREE_WITH_ADS || sub.isPremium);
+      const hasAccess = await this.subscriptionsService.canStream(user.id);
       if (!hasAccess) {
         throw new ForbiddenException({
           code: 'SUBSCRIPTION_REQUIRED',
@@ -52,6 +54,7 @@ export class SubscriptionGuard implements CanActivate {
     }
 
     if (requirement === SubscriptionRequirement.PREMIUM) {
+      const sub = await this.subscriptionsService.getMySubscription(user.id);
       if (!sub.isPremium) {
         throw new ForbiddenException({
           code: 'PREMIUM_REQUIRED',

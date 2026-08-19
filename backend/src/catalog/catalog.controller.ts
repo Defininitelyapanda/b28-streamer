@@ -1,7 +1,6 @@
 import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Put, Query, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Public, RequirePermissions } from '../common/decorators/auth.decorators';
-import { RequireStreamingAccess } from '../common/decorators/subscription.decorators';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { SubscriptionGuard } from '../common/guards/subscription.guard';
@@ -17,7 +16,6 @@ import { YoutubeSyncService } from './youtube-sync.service';
 export class CatalogController {
   constructor(private catalogService: CatalogService) {}
 
-  @RequireStreamingAccess()
   @Get('catalog')
   getCatalog(
     @Query('page') page?: string,
@@ -29,6 +27,19 @@ export class CatalogController {
       limit: limit ? Number(limit) : undefined,
       genre,
     });
+  }
+
+  @Get('catalog/videos/:slug')
+  getVideoBySlug(@Param('slug') slug: string) {
+    return this.catalogService.getVideoBySlug(decodeURIComponent(slug));
+  }
+
+  @Get('catalog/videos/:slug/related')
+  getRelatedBySlug(@Param('slug') slug: string, @Query('limit') limit?: string) {
+    return this.catalogService.getRelatedBySlug(
+      decodeURIComponent(slug),
+      limit ? Number(limit) : 12,
+    );
   }
 }
 

@@ -10,7 +10,7 @@ interface AuthContextValue {
   loading: boolean;
   refresh: () => Promise<void>;
   logout: () => Promise<void>;
-  setSubscription: (sub: SubscriptionInfo | null) => void;
+  setSubscription: (sub: SubscriptionInfo | null) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -19,7 +19,7 @@ const AuthContext = createContext<AuthContextValue>({
   loading: true,
   refresh: async () => {},
   logout: async () => {},
-  setSubscription: () => {},
+  setSubscription: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -61,8 +61,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [session?.accessToken]);
 
   const setSubscription = useCallback(
-    (_sub: SubscriptionInfo | null) => {
-      void update();
+    async (sub: SubscriptionInfo | null) => {
+      if (sub) {
+        await update({ subscription: sub });
+      } else {
+        await update({});
+      }
     },
     [update],
   );
@@ -79,9 +83,7 @@ export function useAuth() {
 }
 
 export function useShowAds() {
-  const { subscription, user } = useAuth();
-  if (!user) return true;
-  return subscription?.adsEnabled !== false;
+  return false;
 }
 
 export function useIsPremium() {

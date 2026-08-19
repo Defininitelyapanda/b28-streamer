@@ -1,4 +1,4 @@
-import Link from "next/link";
+import WatchLink from "@/components/links/WatchLink";
 import type { CatalogVideo } from "@/lib/types";
 
 interface RelatedListProps {
@@ -16,9 +16,9 @@ export default function RelatedList({ videos, currentVideoId }: RelatedListProps
   return (
     <div className="flex flex-col gap-3 overflow-y-auto">
       {related.map((video) => (
-        <Link
+        <WatchLink
           key={video.id}
-          href={`/watch/${video.id}`}
+          slug={video.id}
           className="flex items-center gap-3 rounded-[10px] border border-transparent bg-white/[0.02] p-2 transition hover:border-accent/35 hover:bg-white/5"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -33,7 +33,7 @@ export default function RelatedList({ videos, currentVideoId }: RelatedListProps
               {video.date.slice(0, 4)} • {video.genre} • {video.type}
             </div>
           </div>
-        </Link>
+        </WatchLink>
       ))}
     </div>
   );

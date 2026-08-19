@@ -12,6 +12,7 @@ describe('SubscriptionGuard', () => {
   const reflector = new Reflector();
   const subscriptionsService = {
     getMySubscription: jest.fn(),
+    canStream: jest.fn(),
   } as unknown as SubscriptionsService;
 
   const guard = new SubscriptionGuard(reflector, subscriptionsService);
@@ -35,16 +36,19 @@ describe('SubscriptionGuard', () => {
     await expect(guard.canActivate(contextWithUser())).resolves.toBe(true);
   });
 
-  it('requires active streaming subscription', async () => {
+  it('requires premium or filmmaker access for streaming', async () => {
     jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(SubscriptionRequirement.STREAMING);
-    (subscriptionsService.getMySubscription as jest.Mock).mockResolvedValue({
-      plan: SubscriptionPlan.FREE_WITH_ADS,
-      status: SubscriptionStatus.ACTIVE,
-      isPremium: false,
-      adsEnabled: true,
-    });
+    (subscriptionsService.canStream as jest.Mock).mockResolvedValue(true);
 
     await expect(guard.canActivate(contextWithUser())).resolves.toBe(true);
+    expect(subscriptionsService.canStream).toHaveBeenCalledWith('user-1');
+  });
+
+  it('blocks streaming for users without access', async () => {
+    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(SubscriptionRequirement.STREAMING);
+    (subscriptionsService.canStream as jest.Mock).mockResolvedValue(false);
+
+    await expect(guard.canActivate(contextWithUser())).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('blocks premium-only routes for free users', async () => {

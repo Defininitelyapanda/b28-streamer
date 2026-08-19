@@ -15,16 +15,14 @@ declare global {
           playerVars: Record<string, number | string>;
           events: {
             onReady?: () => void;
-            onError?: (event: { data: number }) => void;
-            onStateChange?: (event: { data: number }) => void;
+            onError?: () => void;
           };
-        }
+        },
       ) => {
         destroy: () => void;
         getCurrentTime: () => number;
         seekTo: (seconds: number, allowSeekAhead: boolean) => void;
       };
-      PlayerState: { PLAYING: number; PAUSED: number; ENDED: number };
     };
   }
 }
@@ -77,22 +75,60 @@ export default function YouTubePlayer({
   startSeconds = 0,
   onProgress,
 }: YouTubePlayerProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const playerRef = useRef<{ destroy: () => void; getCurrentTime: () => number } | null>(null);
-  const [useFallback, setUseFallback] = useState(false);
+  const mountRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<{
+    destroy: () => void;
+    getCurrentTime: () => number;
+    seekTo: (seconds: number, allowSeekAhead: boolean) => void;
+  } | null>(null);
+  const onProgressRef = useRef(onProgress);
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [useFallback, setUseFallback] = useState(false);
 
   useEffect(() => {
+    onProgressRef.current = onProgress;
+  }, [onProgress]);
+
+  useEffect(() => {
+    setUseFallback(false);
+  }, [videoId]);
+
+  function clearPlayer() {
+    if (progressInterval.current) {
+      clearInterval(progressInterval.current);
+      progressInterval.current = null;
+    }
+
+    if (playerRef.current) {
+      try {
+        playerRef.current.destroy();
+      } catch {
+        // YouTube API may already have removed the iframe
+      }
+      playerRef.current = null;
+    }
+
+    if (mountRef.current) {
+      mountRef.current.innerHTML = "";
+    }
+  }
+
+  useEffect(() => {
+    if (useFallback) return undefined;
+
     let cancelled = false;
+    const mountNode = mountRef.current;
 
     async function init() {
-      if (!containerRef.current) return;
+      if (!mountNode) return;
 
       try {
         await loadYouTubeApi();
-        if (cancelled || !containerRef.current || !window.YT?.Player) return;
+        if (cancelled || !mountRef.current || !window.YT?.Player) return;
 
-        const player = new window.YT.Player(containerRef.current, {
+        mountRef.current.innerHTML = "";
+
+        const player = new window.YT.Player(mountRef.current, {
           height: "100%",
           width: "100%",
           videoId,
@@ -107,62 +143,58 @@ export default function YouTubePlayer({
           },
           events: {
             onReady: () => {
-              if (startSeconds > 0 && playerRef.current) {
-                (player as unknown as { seekTo: (s: number, a: boolean) => void }).seekTo(
-                  startSeconds,
-                  true
-                );
+              if (cancelled || !playerRef.current) return;
+              if (startSeconds > 0) {
+                playerRef.current.seekTo(startSeconds, true);
               }
             },
-            onError: () => setUseFallback(true),
+            onError: () => {
+              clearPlayer();
+              if (!cancelled) setUseFallback(true);
+            },
           },
         });
 
         playerRef.current = player;
 
-        if (onProgress) {
-          progressInterval.current = setInterval(() => {
-            try {
-              const time = player.getCurrentTime();
-              if (time > 0) onProgress(time);
-            } catch {
-              // player may be destroyed
-            }
-          }, 5000);
-        }
+        progressInterval.current = setInterval(() => {
+          try {
+            const time = player.getCurrentTime();
+            if (time > 0) onProgressRef.current?.(time);
+          } catch {
+            // player destroyed
+          }
+        }, 5000);
       } catch {
-        setUseFallback(true);
+        clearPlayer();
+        if (!cancelled) setUseFallback(true);
       }
     }
 
-    init();
+    void init();
 
     return () => {
       cancelled = true;
-      if (progressInterval.current) clearInterval(progressInterval.current);
-      if (playerRef.current?.destroy) {
-        try {
-          playerRef.current.destroy();
-        } catch {
-          // ignore
-        }
-      }
-      playerRef.current = null;
+      clearPlayer();
     };
-  }, [videoId, autoplay, startSeconds, onProgress]);
+  }, [videoId, autoplay, startSeconds, useFallback]);
 
-  if (useFallback) {
-    const start = startSeconds > 0 ? `&start=${Math.floor(startSeconds)}` : "";
-    return (
-      <iframe
-        src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&fs=1&playsinline=1&enablejsapi=1${start}`}
-        allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-        allowFullScreen
-        className="absolute inset-0 h-full w-full border-0"
-        title="B28 video player"
-      />
-    );
-  }
+  const start = startSeconds > 0 ? `&start=${Math.floor(startSeconds)}` : "";
 
-  return <div ref={containerRef} className="absolute inset-0 h-full w-full" />;
+  return (
+    <div className="absolute inset-0 h-full w-full">
+      {useFallback ? (
+        <iframe
+          key={`fallback-${videoId}`}
+          src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&fs=1&playsinline=1&enablejsapi=1${start}`}
+          allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+          allowFullScreen
+          className="absolute inset-0 h-full w-full border-0"
+          title="B28 video player"
+        />
+      ) : (
+        <div key={`yt-${videoId}`} ref={mountRef} className="absolute inset-0 h-full w-full" />
+      )}
+    </div>
+  );
 }

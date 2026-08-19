@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import type { CatalogVideo } from "@/lib/types";
 import WatchlistButton from "@/components/cards/WatchlistButton";
+import WatchLink from "@/components/links/WatchLink";
 
 interface VideoCardProps {
   video: CatalogVideo;
@@ -40,7 +40,7 @@ export default function VideoCard({ video, showProgress, showRemove, onRemove }:
       >
         <WatchlistButton videoId={video.videoId} compact />
       </div>
-      <Link href={`/watch/${video.id}`} className="block">
+      <WatchLink slug={video.id} className="block">
         <div className="relative aspect-[2/3] overflow-hidden bg-[#0b0d12]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -73,7 +73,7 @@ export default function VideoCard({ video, showProgress, showRemove, onRemove }:
           </div>
           <h3 className="line-clamp-2 min-h-[2.4em] text-[0.85rem] leading-snug">{video.title}</h3>
         </div>
-      </Link>
+      </WatchLink>
     </div>
   );
 }

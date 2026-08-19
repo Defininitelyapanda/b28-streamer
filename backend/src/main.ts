@@ -59,6 +59,12 @@ async function bootstrap() {
 
   await app.listen(port);
   console.log(`B28 Oncodex API running on http://localhost:${port}`);
+  if (
+    process.env.DEV_BYPASS_STREAMING === 'true' &&
+    process.env.NODE_ENV !== 'production'
+  ) {
+    console.warn('[dev] DEV_BYPASS_STREAMING is enabled — subscription checks are bypassed.');
+  }
 }
 
 bootstrap();

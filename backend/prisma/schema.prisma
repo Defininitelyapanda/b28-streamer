@@ -41,6 +41,12 @@ enum PaymentMethodType {
   CARD
 }
 
+enum FilmmakerApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
   id              String     @id @default(uuid()) @db.Uuid
   email           String     @unique
@@ -69,6 +75,7 @@ model User {
   watchProgress         WatchProgress[]
   watchlist             WatchlistItem[]
   oauthAccounts         OAuthAccount[]
+  filmmakerApplication  FilmmakerApplication?
 
   @@index([status])
   @@map("users")
@@ -360,4 +367,18 @@ model OAuthAccount {
   @@unique([provider, providerId])
   @@index([userId])
   @@map("oauth_accounts")
+}
+
+model FilmmakerApplication {
+  id         String                     @id @default(uuid()) @db.Uuid
+  userId     String                     @unique @map("user_id") @db.Uuid
+  status     FilmmakerApplicationStatus @default(PENDING)
+  message    String?
+  reviewedAt DateTime?                  @map("reviewed_at")
+  createdAt  DateTime                   @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("filmmaker_applications")
 }

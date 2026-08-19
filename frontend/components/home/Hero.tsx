@@ -1,6 +1,6 @@
-import Link from "next/link";
 import type { CatalogVideo } from "@/lib/types";
 import WatchlistButton from "@/components/cards/WatchlistButton";
+import WatchLink from "@/components/links/WatchLink";
 
 interface HeroProps {
   video: CatalogVideo;
@@ -34,12 +34,12 @@ export default function Hero({ video }: HeroProps) {
           {video.desc}
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <Link href={`/watch/${video.id}`} className="btn btn-primary">
+          <WatchLink slug={video.id} className="btn btn-primary">
             <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
               <path d="M8 5v14l11-7z" />
             </svg>
             Watch Now
-          </Link>
+          </WatchLink>
           <WatchlistButton videoId={video.videoId} />
         </div>
       </div>

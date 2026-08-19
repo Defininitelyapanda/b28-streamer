@@ -26,12 +26,11 @@ export class StreamingService {
 
   async getPlaybackInfo(userId: string, slug: string): Promise<PlaybackInfo> {
     const video = await this.catalogService.findBySlug(slug);
-    const sub = await this.subscriptionsService.getMySubscription(userId);
 
-    if (video.accessTier === VideoAccessTier.PREMIUM && !sub.isPremium) {
+    if (!(await this.subscriptionsService.canStream(userId))) {
       throw new ForbiddenException({
-        code: 'PREMIUM_REQUIRED',
-        message: 'Premium subscription required for this title.',
+        code: 'SUBSCRIPTION_REQUIRED',
+        message: 'An active subscription is required to stream.',
       });
     }
 
@@ -40,7 +39,7 @@ export class StreamingService {
         playbackFormat: PlaybackFormat.YOUTUBE,
         videoId: video.videoId,
         accessTier: video.accessTier,
-        adsEnabled: sub.adsEnabled,
+        adsEnabled: false,
       };
     }
 
@@ -57,7 +56,7 @@ export class StreamingService {
       url: presigned.url,
       expiresAt: presigned.expiresAt,
       accessTier: video.accessTier,
-      adsEnabled: sub.adsEnabled,
+      adsEnabled: false,
     };
   }
 

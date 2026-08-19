@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import {
   PaymentMethodType,
+  RoleName,
   SubscriptionPlan,
   SubscriptionStatus,
 } from '@prisma/client';
@@ -44,12 +45,6 @@ export class SubscriptionsService {
         label: 'Annual Premium',
         adsEnabled: false,
       },
-      free: {
-        plan: SubscriptionPlan.FREE_WITH_ADS,
-        price: 0,
-        label: 'Free with Ads',
-        adsEnabled: true,
-      },
       paymentMethods: ['MPESA', 'PAYPAL', 'CARD'],
     };
   }
@@ -79,28 +74,30 @@ export class SubscriptionsService {
     };
   }
 
-  async continueWithAds(userId: string) {
-    await this.prisma.userSubscription.upsert({
+  async canStream(userId: string): Promise<boolean> {
+    const sub = await this.getMySubscription(userId);
+    if (sub.isPremium) return true;
+
+    const roles = await this.prisma.userRole.findMany({
       where: { userId },
-      create: {
-        userId,
-        plan: SubscriptionPlan.FREE_WITH_ADS,
-        status: SubscriptionStatus.ACTIVE,
-        adsEnabled: true,
-      },
-      update: {
-        plan: SubscriptionPlan.FREE_WITH_ADS,
-        status: SubscriptionStatus.ACTIVE,
-        adsEnabled: true,
-        expiresAt: null,
-      },
+      include: { role: true },
     });
-    return this.getMySubscription(userId);
+    return roles.some((r) => r.role.name === RoleName.FILMMAKER);
+  }
+
+  async continueWithAds(_userId: string) {
+    throw new ForbiddenException({
+      code: 'FREE_TIER_DISABLED',
+      message: 'Free streaming is no longer available.',
+    });
   }
 
   async subscribe(userId: string, dto: SubscribeDto) {
     if (dto.plan === SubscriptionPlan.FREE_WITH_ADS) {
-      return this.continueWithAds(userId);
+      throw new ForbiddenException({
+        code: 'FREE_TIER_DISABLED',
+        message: 'Free streaming is no longer available.',
+      });
     }
 
     if (!(await this.settingsService.isFeatureEnabled('PREMIUM'))) {

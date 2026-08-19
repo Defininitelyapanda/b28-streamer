@@ -1,30 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import type { CatalogVideo } from "@/lib/types";
+import { sortFeaturedVideos } from "@/lib/catalog-utils";
 import WatchlistButton from "@/components/cards/WatchlistButton";
+import WatchLink from "@/components/links/WatchLink";
 
 interface FeaturedCarouselProps {
   videos: CatalogVideo[];
 }
 
-function scoreVideo(v: CatalogVideo) {
-  return parseFloat(v.rating || "0") || 0;
-}
-
 export default function FeaturedCarousel({ videos }: FeaturedCarouselProps) {
-  const slides = useMemo(
-    () =>
-      [...videos]
-        .sort((a, b) => {
-          const scoreDiff = scoreVideo(b) - scoreVideo(a);
-          if (Math.abs(scoreDiff) > 0.3) return scoreDiff;
-          return b.date.localeCompare(a.date);
-        })
-        .slice(0, 6),
-    [videos],
-  );
+  const slides = useMemo(() => sortFeaturedVideos(videos, 6), [videos]);
 
   const [index, setIndex] = useState(0);
 
@@ -70,12 +57,12 @@ export default function FeaturedCarousel({ videos }: FeaturedCarouselProps) {
         </div>
         <p className="mb-6 line-clamp-3 max-w-[560px] text-[0.96rem] text-[#dfe3eb]">{current.desc}</p>
         <div className="flex flex-wrap items-center gap-3">
-          <Link href={`/watch/${current.id}`} className="btn btn-primary">
+          <WatchLink slug={current.id} className="btn btn-primary">
             <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
               <path d="M8 5v14l11-7z" />
             </svg>
             Watch Now
-          </Link>
+          </WatchLink>
           <WatchlistButton key={current.videoId} videoId={current.videoId} />
         </div>
       </div>
