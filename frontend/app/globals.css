@@ -119,6 +119,20 @@ body {
   }
 }
 
+@keyframes login-autofill-start {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.login-autofill-input:-webkit-autofill {
+  animation-name: login-autofill-start;
+  animation-duration: 0.01s;
+}
+
 @keyframes login-dialog-in {
   from {
     opacity: 0;

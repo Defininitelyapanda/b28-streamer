@@ -1,0 +1,76 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: b28
+          POSTGRES_PASSWORD: b28
+          POSTGRES_DB: b28_oncodex_test
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U b28 -d b28_oncodex_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://b28:b28@localhost:5434/b28_oncodex_test
+      JWT_ACCESS_SECRET: ci-test-access-secret-minimum-32-chars
+      NODE_ENV: test
+      REQUIRE_TEST_DB: 'true'
+      CRON_SECRET: ci-test-cron-secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npm run prisma:generate
+
+      - name: Apply migrations
+        working-directory: backend
+        run: npm run prisma:migrate:deploy
+
+      - name: Seed database
+        working-directory: backend
+        run: npm run prisma:seed
+
+      - name: Build
+        working-directory: backend
+        run: npm run build
+
+      - name: Unit tests
+        working-directory: backend
+        run: npm test
+
+      - name: E2E tests
+        working-directory: backend
+        run: npm run test:e2e

@@ -295,6 +295,7 @@ model CatalogVideo {
 
   @@index([published])
   @@index([genre])
+  @@index([published, genre, sortOrder])
   @@index([accessTier])
   @@map("catalog_videos")
 }

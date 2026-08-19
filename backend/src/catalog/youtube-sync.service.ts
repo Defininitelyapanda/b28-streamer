@@ -1,4 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PlaybackFormat, VideoAccessTier } from '@prisma/client';
 import { CatalogService } from './catalog.service';
@@ -59,13 +65,19 @@ export class YoutubeSyncService {
     const apiKey = this.config.get<string>('YOUTUBE_API_KEY');
     const channelId = this.config.get<string>('YOUTUBE_CHANNEL_ID');
     if (!apiKey || !channelId) {
-      throw new Error('YOUTUBE_API_KEY and YOUTUBE_CHANNEL_ID must be configured');
+      throw new ServiceUnavailableException({
+        code: 'YOUTUBE_NOT_CONFIGURED',
+        message: 'YouTube sync is not configured.',
+      });
     }
 
     const uploadsPlaylistId = await this.getUploadsPlaylistId(apiKey, channelId);
     const videoIds = await this.fetchAllPlaylistVideoIds(apiKey, uploadsPlaylistId);
     if (!videoIds.length) {
-      throw new Error('No videos found on channel');
+      throw new BadRequestException({
+        code: 'YOUTUBE_NO_VIDEOS',
+        message: 'No videos found on the configured YouTube channel.',
+      });
     }
 
     const videos = await this.fetchVideoDetails(apiKey, videoIds);
@@ -100,7 +112,10 @@ export class YoutubeSyncService {
     const res = await fetch(url.toString());
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`YouTube API error (${res.status}): ${text.slice(0, 200)}`);
+      throw new BadGatewayException({
+        code: 'YOUTUBE_API_ERROR',
+        message: `YouTube API error (${res.status}): ${text.slice(0, 200)}`,
+      });
     }
     return res.json() as Promise<T>;
   }
@@ -112,7 +127,12 @@ export class YoutubeSyncService {
       { part: 'contentDetails', id: channelId },
     );
     const playlistId = data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
-    if (!playlistId) throw new Error('Could not resolve uploads playlist');
+    if (!playlistId) {
+      throw new BadGatewayException({
+        code: 'YOUTUBE_API_ERROR',
+        message: 'Could not resolve uploads playlist for the configured channel.',
+      });
+    }
     return playlistId;
   }
 

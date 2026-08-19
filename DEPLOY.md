@@ -58,7 +58,7 @@ Set for **Production**, **Preview**, and **Development**:
 
 | Key | Example / notes |
 |-----|-----------------|
-| `DATABASE_URL` | Postgres connection string ([Vercel Postgres](https://vercel.com/docs/storage/vercel-postgres) or [Neon](https://neon.tech)). Use `?pgbouncer=true` for pooled serverless connections. |
+| `DATABASE_URL` | Postgres connection string ([Vercel Postgres](https://vercel.com/docs/storage/vercel-postgres) or [Neon](https://neon.tech)). **Production must use pooled connection** — append `?pgbouncer=true` or use Neon's pooled host. |
 | `JWT_ACCESS_SECRET` | Min 32 characters |
 | `AUTH_AUTO_VERIFY` | Set to `true` until `RESEND_API_KEY` is configured (otherwise new users cannot verify email) |
 | `NODE_ENV` | `production` |
@@ -132,7 +132,7 @@ Replace `YOUR-APP` with your Vercel URL (e.g. `b28-streamer.vercel.app`):
 - https://YOUR-APP.vercel.app/
 - https://YOUR-APP.vercel.app/browse
 - https://YOUR-APP.vercel.app/login (auth required for streaming)
-- https://YOUR-APP.vercel.app/api/v1/catalog (requires Bearer token)
+- https://YOUR-APP.vercel.app/api/v1/catalog (public — no auth required)
 - https://YOUR-APP.vercel.app/health
 - https://YOUR-APP.vercel.app/api/docs
 
@@ -145,6 +145,33 @@ Invoke-WebRequest -Uri "https://YOUR-APP.vercel.app/api/sync" -Headers @{ Author
 ```
 
 Cron runs daily at midnight UTC (see `crons` in [vercel.json](vercel.json)).
+
+## Phase A verification (post-deploy checklist)
+
+Run after each backend stabilization deploy. Replace `YOUR-APP` with your Vercel URL.
+
+| Check | Command / URL | Expected |
+|-------|---------------|----------|
+| Health | `GET /health` | 200 |
+| Ready | `GET /health/ready` | 200, `database: true` |
+| Public catalog | `GET /api/v1/catalog` | 200, videos array, no auth |
+| Offers | `GET /api/v1/subscriptions/offers` | 200 |
+| Login | `POST /api/v1/auth/login` | 201 + tokens |
+| Browse (logged out) | `/browse` | Shows DB catalog, not seed-only |
+| Watch metadata | `/watch/[slug]` logged out | Poster/title from API |
+| Streaming gated | `GET /api/v1/streaming/play/:slug` no auth | 401 |
+| Dev bypass off | Confirm `DEV_BYPASS_STREAMING` unset in prod | — |
+| Payment safety | `PREMIUM` and `payments.gateway_enabled` both **false** in DB | — |
+
+```powershell
+# Quick smoke script
+$base = "https://YOUR-APP.vercel.app"
+Invoke-WebRequest "$base/health"
+Invoke-WebRequest "$base/health/ready"
+Invoke-WebRequest "$base/api/v1/catalog"
+Invoke-WebRequest "$base/api/v1/subscriptions/offers"
+Invoke-WebRequest -Method POST "$base/api/v1/auth/login" -ContentType "application/json" -Body '{"email":"filmmaker@b28.dev","password":"Password123!"}'
+```
 
 ## Deploy from CLI
 

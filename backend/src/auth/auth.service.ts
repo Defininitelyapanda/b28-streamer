@@ -319,7 +319,7 @@ export class AuthService {
       },
     });
 
-    if (this.configService.get<string>('NODE_ENV') !== 'production') {
+    if (this.configService.get<string>('NODE_ENV') === 'development') {
       console.log(`[B28 OTP] Phone ${phone} code: ${code}`);
       return { message: 'Verification code sent.', devCode: code };
     }

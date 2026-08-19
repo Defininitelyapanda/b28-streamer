@@ -19,7 +19,8 @@
     "wsl:install": "powershell -ExecutionPolicy Bypass -File scripts/install-wsl.ps1",
     "db:migrate": "npm run prisma:migrate:deploy --prefix backend",
     "db:seed": "npm run prisma:seed --prefix backend",
-    "vercel:env": "powershell -ExecutionPolicy Bypass -File scripts/set-vercel-backend-env.ps1"
+    "vercel:env": "powershell -ExecutionPolicy Bypass -File scripts/set-vercel-backend-env.ps1",
+    "test:api": "npm test --prefix backend && npm run test:e2e --prefix backend"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

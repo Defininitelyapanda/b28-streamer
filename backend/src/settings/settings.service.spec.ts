@@ -37,4 +37,10 @@ describe('SettingsService', () => {
 
     await expect(service.validateRevenueSplit()).resolves.toBeUndefined();
   });
+
+  it('rejects platform_percentage outside 0-100', async () => {
+    await expect(
+      service.upsertSetting({ key: 'revenue.platform_percentage', value: 150, type: 'number' }),
+    ).rejects.toThrow(BadRequestException);
+  });
 });

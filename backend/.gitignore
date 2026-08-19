@@ -2,6 +2,11 @@ node_modules
 dist
 src/main.js
 src/main.js.map
+src/main.local.ts
+run.js
+scripts/bootstrap.dev.ts
+src/server.js
+src/server.js.map
 src/main.bundle.js
 src/main.bundle.js.map
 .env

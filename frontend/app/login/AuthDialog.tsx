@@ -9,6 +9,7 @@ import {
   type Persona,
 } from "@/app/login/login-utils";
 import { hasFilmmakerAccess } from "@/lib/streaming-access";
+import { useAutofillField } from "@/app/login/useAutofillField";
 
 type AuthMode = "signin" | "signup";
 
@@ -20,6 +21,16 @@ interface AuthDialogProps {
   onMismatch: (message: string) => void;
 }
 
+function devDefaultEmail(persona: Persona) {
+  return persona === "streamer" && process.env.NODE_ENV === "development"
+    ? "admin.123@b28.dev"
+    : "";
+}
+
+function devDefaultPassword(persona: Persona) {
+  return persona === "streamer" && process.env.NODE_ENV === "development" ? "1234" : "";
+}
+
 export default function AuthDialog({
   persona,
   redirectParam,
@@ -28,32 +39,39 @@ export default function AuthDialog({
   onMismatch,
 }: AuthDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const [mode, setMode] = useState<AuthMode>("signin");
-  const [email, setEmail] = useState(
-    persona === "streamer" && process.env.NODE_ENV === "development"
-      ? "admin.123@b28.dev"
-      : "",
-  );
-  const [password, setPassword] = useState(
-    persona === "streamer" && process.env.NODE_ENV === "development" ? "1234" : "",
-  );
+  const emailField = useAutofillField(devDefaultEmail(persona));
+  const passwordField = useAutofillField(devDefaultPassword(persona));
   const [displayName, setDisplayName] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
 
   const titleId = "auth-dialog-title";
   const isFilmmaker = persona === "filmmaker";
+  const isSignUp = mode === "signup";
+  const emailInputId = `${persona}-${mode}-email`;
+  const passwordInputId = `${persona}-${mode}-password`;
+  const displayNameInputId = `${persona}-signup-display-name`;
+
+  function resolveCredentials() {
+    const email = emailField.inputRef.current?.value ?? emailField.value;
+    const password = passwordField.inputRef.current?.value ?? passwordField.value;
+    emailField.setValue(email);
+    passwordField.setValue(password);
+    return { email, password };
+  }
 
   useEffect(() => {
     const node = dialogRef.current;
-    if (!node) return;
+    const form = formRef.current;
+    if (!node || !form) return;
 
-    const focusable = node.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    );
-    const first = focusable[0];
-    first?.focus();
+    if (!form.contains(document.activeElement)) {
+      emailField.inputRef.current?.focus();
+    }
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -61,7 +79,12 @@ export default function AuthDialog({
         onBack();
         return;
       }
-      if (e.key !== "Tab" || focusable.length === 0) return;
+      if (e.key !== "Tab" || !node) return;
+
+      const focusable = node.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
 
       const firstEl = focusable[0];
       const lastEl = focusable[focusable.length - 1];
@@ -76,7 +99,7 @@ export default function AuthDialog({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onBack]);
+  }, [onBack, mode, persona]);
 
   async function completeSignIn(authMode: AuthMode) {
     const session = await getSession();
@@ -115,6 +138,8 @@ export default function AuthDialog({
     setError("");
     setInfo("");
 
+    const { email, password } = resolveCredentials();
+
     try {
       const result = await signIn("credentials", {
         email,
@@ -144,6 +169,8 @@ export default function AuthDialog({
     setLoading(true);
     setError("");
     setInfo("");
+
+    const { email, password } = resolveCredentials();
 
     try {
       const accountType = personaToAccountType(persona);
@@ -175,23 +202,21 @@ export default function AuthDialog({
     }
   }
 
-  const headline =
-    mode === "signup"
-      ? isFilmmaker
-        ? "Create filmmaker account"
-        : "Join B28"
-      : isFilmmaker
-        ? "Filmmaker sign in"
-        : "Welcome back";
+  const headline = isSignUp
+    ? isFilmmaker
+      ? "Create filmmaker account"
+      : "Join B28"
+    : isFilmmaker
+      ? "Filmmaker sign in"
+      : "Welcome back";
 
-  const subtitle =
-    mode === "signup"
-      ? isFilmmaker
-        ? "Start distributing your films on B28."
-        : "Subscribe to stream Kenyan films and originals."
-      : isFilmmaker
-        ? "Access your filmmaker hub."
-        : "Sign in to browse and watch on B28.";
+  const subtitle = isSignUp
+    ? isFilmmaker
+      ? "Start distributing your films on B28."
+      : "Subscribe to stream Kenyan films and originals."
+    : isFilmmaker
+      ? "Access your filmmaker hub."
+      : "Sign in to browse and watch on B28.";
 
   return (
     <div
@@ -223,6 +248,7 @@ export default function AuthDialog({
               setMode(tab);
               setError("");
               setInfo("");
+              setShowPassword(false);
             }}
             className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold transition ${
               mode === tab ? "bg-accent text-white shadow-md" : "text-muted hover:text-white"
@@ -249,55 +275,85 @@ export default function AuthDialog({
       )}
 
       <form
-        onSubmit={mode === "signin" ? handleSignIn : handleSignUp}
+        ref={formRef}
+        key={`${persona}-${mode}`}
+        autoComplete={isSignUp ? "off" : "on"}
+        onSubmit={isSignUp ? handleSignUp : handleSignIn}
         className="space-y-4"
       >
-        {mode === "signup" && (
-          <label className="block text-sm">
+        {isSignUp && (
+          <label htmlFor={displayNameInputId} className="block text-sm">
             <span className="text-muted">Display name</span>
             <input
+              id={displayNameInputId}
+              name="displayName"
               type="text"
               required
               minLength={1}
               autoComplete="name"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className="glass-input mt-1 w-full"
+              className="glass-input login-autofill-input mt-1 w-full"
             />
           </label>
         )}
 
-        <label className="block text-sm">
+        <label htmlFor={emailInputId} className="block text-sm">
           <span className="text-muted">Email</span>
           <input
+            ref={emailField.inputRef}
+            id={emailInputId}
+            name={isSignUp ? "email" : "username"}
             type="email"
             required
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="glass-input mt-1 w-full"
+            autoComplete={isSignUp ? "email" : "username"}
+            readOnly={emailField.readOnly}
+            value={emailField.value}
+            onChange={emailField.onChange}
+            onInput={emailField.onInput}
+            onFocus={emailField.onFocus}
+            onAnimationStart={emailField.onAutofillAnimationStart}
+            className="glass-input login-autofill-input mt-1 w-full"
           />
         </label>
 
-        <label className="block text-sm">
+        <label htmlFor={passwordInputId} className="block text-sm">
           <span className="text-muted">Password</span>
-          <input
-            type="password"
-            required
-            minLength={mode === "signup" ? 8 : 1}
-            autoComplete={mode === "signup" ? "new-password" : "current-password"}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="glass-input mt-1 w-full"
-          />
+          <div className="relative mt-1">
+            <input
+              ref={passwordField.inputRef}
+              id={passwordInputId}
+              name="password"
+              type={showPassword ? "text" : "password"}
+              required
+              minLength={isSignUp ? 8 : 1}
+              autoComplete={isSignUp ? "new-password" : "current-password"}
+              readOnly={passwordField.readOnly}
+              value={passwordField.value}
+              onChange={passwordField.onChange}
+              onInput={passwordField.onInput}
+              onFocus={passwordField.onFocus}
+              onAnimationStart={passwordField.onAutofillAnimationStart}
+              className="glass-input login-autofill-input w-full pr-11"
+            />
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              onClick={() => setShowPassword((prev) => !prev)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted transition hover:text-white"
+            >
+              {showPassword ? "Hide" : "Show"}
+            </button>
+          </div>
         </label>
 
         <button type="submit" disabled={loading} className="btn btn-primary w-full">
           {loading
-            ? mode === "signup"
+            ? isSignUp
               ? "Creating account…"
               : "Signing in…"
-            : mode === "signup"
+            : isSignUp
               ? "Create account"
               : "Sign in"}
         </button>

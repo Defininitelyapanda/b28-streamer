@@ -13,7 +13,7 @@ declare global {
 }
 
 const API_BASE = getServerApiBase();
-const CATALOG_REVALIDATE = Number(process.env.CATALOG_REVALIDATE_SECONDS ?? "30");
+const CATALOG_REVALIDATE = Number(process.env.CATALOG_REVALIDATE_SECONDS ?? "60");
 
 function defaultCatalog(): CatalogData {
   return {
@@ -62,17 +62,20 @@ export function normalizeMovie(
   };
 }
 
-async function fetchCatalogFromApi(accessToken?: string): Promise<CatalogData | null> {
-  if (!accessToken) return null;
-
+async function fetchCatalogFromApi(): Promise<CatalogData | null> {
   try {
     const res = await fetch(`${API_BASE}/catalog`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
       next: { revalidate: CATALOG_REVALIDATE },
     });
+    // #region agent log
+    fetch('http://127.0.0.1:7533/ingest/e9d0989d-a309-403f-b88e-6328f60ff267',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9ead3f'},body:JSON.stringify({sessionId:'9ead3f',location:'catalog.ts:fetchCatalogFromApi',message:'frontend catalog fetch',data:{apiBase:API_BASE,status:res.status,ok:res.ok},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
     if (!res.ok) return null;
     const json = (await res.json()) as { success?: boolean; data?: CatalogData };
     if (json.success && json.data?.videos?.length) {
+      // #region agent log
+      fetch('http://127.0.0.1:7533/ingest/e9d0989d-a309-403f-b88e-6328f60ff267',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9ead3f'},body:JSON.stringify({sessionId:'9ead3f',location:'catalog.ts:fetchCatalogFromApi',message:'frontend catalog api success',data:{videoCount:json.data.videos.length,source:json.data.source},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       return json.data;
     }
     if (!json.success && (json as CatalogData).videos?.length) {
@@ -106,15 +109,9 @@ async function resolveFallbackVideos(): Promise<CatalogVideo[]> {
   return defaultCatalog().videos;
 }
 
-async function fetchVideoBySlugFromApi(
-  slug: string,
-  accessToken?: string,
-): Promise<CatalogVideo | null> {
-  if (!accessToken) return null;
-
+async function fetchVideoBySlugFromApi(slug: string): Promise<CatalogVideo | null> {
   try {
     const res = await fetch(`${API_BASE}/catalog/videos/${encodeURIComponent(slug)}`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
       next: { revalidate: CATALOG_REVALIDATE },
     });
     if (!res.ok) return null;
@@ -130,16 +127,12 @@ async function fetchVideoBySlugFromApi(
 
 async function fetchRelatedBySlugFromApi(
   slug: string,
-  accessToken?: string,
   limit = 12,
 ): Promise<CatalogVideo[] | null> {
-  if (!accessToken) return null;
-
   try {
     const res = await fetch(
       `${API_BASE}/catalog/videos/${encodeURIComponent(slug)}/related?limit=${limit}`,
       {
-        headers: { Authorization: `Bearer ${accessToken}` },
         next: { revalidate: CATALOG_REVALIDATE },
       },
     );
@@ -156,8 +149,8 @@ async function fetchRelatedBySlugFromApi(
   return null;
 }
 
-async function fetchVideoBySlug(slug: string, accessToken?: string): Promise<CatalogVideo | null> {
-  const fromApi = await fetchVideoBySlugFromApi(slug, accessToken);
+async function fetchVideoBySlug(slug: string): Promise<CatalogVideo | null> {
+  const fromApi = await fetchVideoBySlugFromApi(slug);
   if (fromApi) return fromApi;
 
   const videos = await resolveFallbackVideos();
@@ -167,10 +160,9 @@ async function fetchVideoBySlug(slug: string, accessToken?: string): Promise<Cat
 async function fetchRelatedBySlug(
   slug: string,
   video: CatalogVideo,
-  accessToken?: string,
   limit = 12,
 ): Promise<CatalogVideo[]> {
-  const fromApi = await fetchRelatedBySlugFromApi(slug, accessToken, limit);
+  const fromApi = await fetchRelatedBySlugFromApi(slug, limit);
   if (fromApi?.length) return fromApi;
 
   const videos = await resolveFallbackVideos();
@@ -178,18 +170,19 @@ async function fetchRelatedBySlug(
 }
 
 export const getCatalog = cache(async function getCatalog(): Promise<CatalogData> {
-  const session = await auth();
-  const accessToken = session?.accessToken;
-
-  if (globalThis.__b28CatalogCache && process.env.NODE_ENV === "production" && accessToken) {
+  if (globalThis.__b28CatalogCache && process.env.NODE_ENV === "production") {
     return globalThis.__b28CatalogCache;
   }
 
-  const fromApi = await fetchCatalogFromApi(accessToken);
+  const fromApi = await fetchCatalogFromApi();
   if (fromApi) {
     globalThis.__b28CatalogCache = fromApi;
     return fromApi;
   }
+
+  // #region agent log
+  fetch('http://127.0.0.1:7533/ingest/e9d0989d-a309-403f-b88e-6328f60ff267',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9ead3f'},body:JSON.stringify({sessionId:'9ead3f',location:'catalog.ts:getCatalog',message:'frontend catalog fallback',data:{nodeEnv:process.env.NODE_ENV,fallback:'seed-or-local'},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
+  // #endregion
 
   const local = await loadLocalCatalog();
   if (local) {
@@ -201,10 +194,9 @@ export const getCatalog = cache(async function getCatalog(): Promise<CatalogData
 
 export const getWatchPageData = cache(async function getWatchPageData(slug: string) {
   const session = await auth();
-  const accessToken = session?.accessToken;
 
-  const video = await fetchVideoBySlug(slug, accessToken);
-  const related = video ? await fetchRelatedBySlug(slug, video, accessToken) : [];
+  const video = await fetchVideoBySlug(slug);
+  const related = video ? await fetchRelatedBySlug(slug, video) : [];
 
   return { video, related, session };
 });

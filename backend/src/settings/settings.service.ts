@@ -73,11 +73,8 @@ export class SettingsService {
 
   private validateSetting(key: string, value: unknown) {
     if (key === 'revenue.filmmaker_percentage' || key === 'revenue.platform_percentage') {
-      const filmmaker = key === 'revenue.filmmaker_percentage'
-        ? Number(value)
-        : undefined;
-      // Validate on paired update handled in controller batch or individually
-      if (filmmaker !== undefined && (filmmaker < 0 || filmmaker > 100)) {
+      const pct = Number(value);
+      if (Number.isNaN(pct) || pct < 0 || pct > 100) {
         throw new BadRequestException({ code: 'INVALID_SETTING', message: 'Percentage must be 0-100.' });
       }
     }
@@ -96,6 +93,13 @@ export class SettingsService {
   async isFeatureEnabled(key: string): Promise<boolean> {
     const flag = await this.prisma.featureFlag.findUnique({ where: { key } });
     return flag?.enabled ?? false;
+  }
+
+  async isPaymentsGatewayEnabled(): Promise<boolean> {
+    const setting = await this.prisma.platformSetting.findUnique({
+      where: { key: 'payments.gateway_enabled' },
+    });
+    return setting?.value === true;
   }
 
   async validateRevenueSplit() {

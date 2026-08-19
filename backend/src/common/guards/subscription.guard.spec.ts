@@ -29,6 +29,8 @@ describe('SubscriptionGuard', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    delete process.env.DEV_BYPASS_STREAMING;
+    process.env.NODE_ENV = 'test';
   });
 
   it('allows when no subscription requirement is set', async () => {

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CacheModule } from '../common/cache/cache.module';
 import { StorageModule } from '../storage/storage.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { SubscriptionGuard } from '../common/guards/subscription.guard';
@@ -7,7 +8,7 @@ import { CatalogService } from './catalog.service';
 import { YoutubeSyncService } from './youtube-sync.service';
 
 @Module({
-  imports: [StorageModule, SubscriptionsModule],
+  imports: [CacheModule, StorageModule, SubscriptionsModule],
   controllers: [CatalogController, AdminCatalogController],
   providers: [CatalogService, YoutubeSyncService, SubscriptionGuard],
   exports: [CatalogService],

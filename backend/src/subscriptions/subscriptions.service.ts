@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   PaymentMethodType,
   RoleName,
@@ -6,6 +6,7 @@ import {
   SubscriptionStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { CacheService } from '../common/cache/cache.service';
 import { SettingsService } from '../settings/settings.service';
 import { AddPaymentMethodDto, SubscribeDto } from './dto/subscriptions.dto';
 
@@ -14,6 +15,7 @@ export class SubscriptionsService {
   constructor(
     private prisma: PrismaService,
     private settingsService: SettingsService,
+    private cache: CacheService,
   ) {}
 
   async getOffers() {
@@ -75,14 +77,23 @@ export class SubscriptionsService {
   }
 
   async canStream(userId: string): Promise<boolean> {
+    const cacheKey = `canStream:${userId}`;
+    const cached = await this.cache.get<boolean>(cacheKey);
+    if (cached !== null) return cached;
+
     const sub = await this.getMySubscription(userId);
-    if (sub.isPremium) return true;
+    if (sub.isPremium) {
+      await this.cache.set(cacheKey, true, 30);
+      return true;
+    }
 
     const roles = await this.prisma.userRole.findMany({
       where: { userId },
       include: { role: true },
     });
-    return roles.some((r) => r.role.name === RoleName.FILMMAKER);
+    const allowed = roles.some((r) => r.role.name === RoleName.FILMMAKER);
+    await this.cache.set(cacheKey, allowed, 30);
+    return allowed;
   }
 
   async continueWithAds(_userId: string) {
@@ -100,10 +111,30 @@ export class SubscriptionsService {
       });
     }
 
-    if (!(await this.settingsService.isFeatureEnabled('PREMIUM'))) {
+    const premiumEnabled = await this.settingsService.isFeatureEnabled('PREMIUM');
+    const gatewayEnabled = await this.settingsService.isPaymentsGatewayEnabled();
+    // #region agent log
+    fetch('http://127.0.0.1:7533/ingest/e9d0989d-a309-403f-b88e-6328f60ff267',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9ead3f'},body:JSON.stringify({sessionId:'9ead3f',location:'subscriptions.service.ts:subscribe',message:'subscribe guard state',data:{premiumEnabled,gatewayEnabled,hasPaymentMethod:Boolean(dto.paymentMethodId),plan:dto.plan},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
+
+    if (!premiumEnabled) {
       throw new ForbiddenException({
         code: 'FEATURE_DISABLED',
         message: 'Premium subscriptions are not enabled.',
+      });
+    }
+
+    if (!gatewayEnabled) {
+      throw new ForbiddenException({
+        code: 'PAYMENTS_NOT_ENABLED',
+        message: 'Payment gateway is not enabled.',
+      });
+    }
+
+    if (!dto.paymentMethodId) {
+      throw new BadRequestException({
+        code: 'PAYMENT_METHOD_REQUIRED',
+        message: 'A payment method is required.',
       });
     }
 
@@ -136,6 +167,8 @@ export class SubscriptionsService {
         expiresAt,
       },
     });
+
+    await this.cache.del(`canStream:${userId}`);
 
     return this.getMySubscription(userId);
   }

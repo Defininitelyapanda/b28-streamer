@@ -60,6 +60,7 @@ const DEFAULT_SETTINGS = [
   { key: 'ads.premium_ads_enabled', value: false, type: 'boolean' },
   { key: 'moderation.comment_mode', value: 'OPEN', type: 'string' },
   { key: 'payouts.minimum_payout_amount', value: 1000, type: 'number' },
+  { key: 'payments.gateway_enabled', value: false, type: 'boolean' },
 ];
 
 const FEATURE_FLAGS = [

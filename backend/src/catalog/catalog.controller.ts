@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Put, Query, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Headers, Param, Patch, Post, Put, Query, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Public, RequirePermissions } from '../common/decorators/auth.decorators';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -16,6 +16,8 @@ import { YoutubeSyncService } from './youtube-sync.service';
 export class CatalogController {
   constructor(private catalogService: CatalogService) {}
 
+  @Public()
+  @Header('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300')
   @Get('catalog')
   getCatalog(
     @Query('page') page?: string,
@@ -29,11 +31,15 @@ export class CatalogController {
     });
   }
 
+  @Public()
+  @Header('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300')
   @Get('catalog/videos/:slug')
   getVideoBySlug(@Param('slug') slug: string) {
     return this.catalogService.getVideoBySlug(decodeURIComponent(slug));
   }
 
+  @Public()
+  @Header('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300')
   @Get('catalog/videos/:slug/related')
   getRelatedBySlug(@Param('slug') slug: string, @Query('limit') limit?: string) {
     return this.catalogService.getRelatedBySlug(
