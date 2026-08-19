@@ -11,7 +11,7 @@ function NavbarContent() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, subscription, logout } = useAuth();
+  const { user, subscription, logout, loading } = useAuth();
   const [query, setQuery] = useState("");
   const [syncStatus, setSyncStatus] = useState("");
 
@@ -114,7 +114,11 @@ function NavbarContent() {
       </form>
 
       <div className="flex shrink-0 items-center gap-2">
-        {user ? (
+        {loading ? (
+          <span className="nav-btn-sm pointer-events-none text-[0.65rem] opacity-0" aria-hidden>
+            Log in
+          </span>
+        ) : user ? (
           <>
             {!canWatch && (
               <Link href="/offers" className="nav-btn-sm text-[0.65rem]">

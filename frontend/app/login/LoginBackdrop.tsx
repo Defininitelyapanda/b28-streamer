@@ -72,7 +72,6 @@ export default function LoginBackdrop({ videos, persona, parallax }: LoginBackdr
     return () => clearInterval(id);
   }, [heroSlides.length, reducedMotion]);
 
-  const currentHero = heroSlides[heroIndex] ?? heroSlides[0];
   const tintClass =
     persona === "filmmaker"
       ? "from-amber-500/10 via-transparent to-blue-500/10"
@@ -88,14 +87,18 @@ export default function LoginBackdrop({ videos, persona, parallax }: LoginBackdr
         transform: `translate3d(${parallax.x}px, ${parallax.y}px, 0)`,
       }}
     >
-      {currentHero && (
+      {heroSlides.map((slide, i) => (
         <div
-          className={`absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ${reducedMotion ? "" : "login-ken-burns"}`}
+          key={slide.id}
+          aria-hidden={i !== heroIndex}
+          className={`absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ${
+            i === heroIndex ? "opacity-100" : "opacity-0"
+          } ${reducedMotion ? "" : "login-ken-burns"}`}
           style={{
-            backgroundImage: `url("${currentHero.thumbnail}")`,
+            backgroundImage: `url("${slide.thumbnail}")`,
           }}
         />
-      )}
+      ))}
 
       <div className="absolute inset-0 bg-black/75" />
       <div className={`absolute inset-0 bg-gradient-to-br ${tintClass}`} />

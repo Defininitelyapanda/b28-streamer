@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { CatalogVideo } from "@/lib/types";
 import type { ContentRow } from "@/lib/catalog-utils";
 import { getRowsFor } from "@/lib/catalog-utils";
@@ -18,23 +18,34 @@ interface HomeClientProps {
 }
 
 export default function HomeClient({ videos }: HomeClientProps) {
-  const { user } = useAuth();
-  const [rows, setRows] = useState<ContentRow[]>([]);
+  const { user, loading } = useAuth();
+  const [rows, setRows] = useState<ContentRow[]>(() => getRowsFor(videos, "All"));
   const [continueWatching, setContinueWatching] = useState<CatalogVideo[]>([]);
   const [watchlist, setWatchlist] = useState<CatalogVideo[]>([]);
   const [progressMap, setProgressMap] = useState<Record<string, number>>({});
 
-  const loadPersonal = useCallback(async () => {
+  useEffect(() => {
     setRows(getRowsFor(videos, "All"));
-    const cw = await syncContinueWatchingFromApi(videos);
-    setContinueWatching(cw.videos);
-    setProgressMap(cw.progressMap);
-    setWatchlist(await syncWatchlistFromApi(videos));
   }, [videos]);
 
   useEffect(() => {
-    loadPersonal();
-  }, [loadPersonal, user]);
+    if (loading) return;
+
+    let cancelled = false;
+
+    async function loadPersonal() {
+      const cw = await syncContinueWatchingFromApi(videos);
+      if (cancelled) return;
+      setContinueWatching(cw.videos);
+      setProgressMap(cw.progressMap);
+      setWatchlist(await syncWatchlistFromApi(videos));
+    }
+
+    void loadPersonal();
+    return () => {
+      cancelled = true;
+    };
+  }, [videos, user?.id, loading]);
 
   async function handleRemoveContinue(videoId: string) {
     await removeFromContinueWatching(videoId);

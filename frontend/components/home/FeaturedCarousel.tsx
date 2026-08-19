@@ -10,6 +10,10 @@ interface FeaturedCarouselProps {
   videos: CatalogVideo[];
 }
 
+function slideBackground(thumbnail: string) {
+  return `linear-gradient(90deg, rgba(8,9,13,0.92) 0%, rgba(8,9,13,0.64) 30%, rgba(8,9,13,0.18) 60%, rgba(8,9,13,0.74) 100%), url("${thumbnail}")`;
+}
+
 export default function FeaturedCarousel({ videos }: FeaturedCarouselProps) {
   const slides = useMemo(() => sortFeaturedVideos(videos, 6), [videos]);
 
@@ -30,15 +34,20 @@ export default function FeaturedCarousel({ videos }: FeaturedCarouselProps) {
   if (!slides.length) return null;
 
   const current = slides[index];
-  const bgStyle = {
-    backgroundImage: `linear-gradient(90deg, rgba(8,9,13,0.92) 0%, rgba(8,9,13,0.64) 30%, rgba(8,9,13,0.18) 60%, rgba(8,9,13,0.74) 100%), url("${current.thumbnail}")`,
-  };
 
   return (
-    <section
-      className="relative flex min-h-[620px] items-end overflow-hidden border-b border-white/10 bg-cover bg-center px-[4%] pb-16 transition-[background-image] duration-700 max-md:min-h-[400px] max-md:px-[18px] max-md:pb-12"
-      style={bgStyle}
-    >
+    <section className="relative flex min-h-[620px] items-end overflow-hidden border-b border-white/10 px-[4%] pb-16 max-md:min-h-[400px] max-md:px-[18px] max-md:pb-12">
+      {slides.map((slide, i) => (
+        <div
+          key={slide.id}
+          aria-hidden={i !== index}
+          className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ${
+            i === index ? "opacity-100" : "opacity-0"
+          }`}
+          style={{ backgroundImage: slideBackground(slide.thumbnail) }}
+        />
+      ))}
+
       <div className="relative z-10 w-full max-w-[660px]">
         <div className="mb-3.5 inline-block rounded-md bg-accent px-3 py-1.5 text-[0.68rem] font-extrabold uppercase tracking-widest text-white shadow-[0_0_18px_rgba(229,9,20,0.4)]">
           Featured Release

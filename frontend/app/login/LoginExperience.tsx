@@ -37,9 +37,8 @@ export default function LoginExperience({ videos }: LoginExperienceProps) {
   }, []);
 
   useEffect(() => {
-    if (status !== "authenticated") return;
+    if (status === "loading" || status !== "authenticated") return;
     const currentPersona = persona ?? "streamer";
-    // Session already exists — let server redirect handle most cases; client fallback:
     router.replace(redirectParam ?? (currentPersona === "filmmaker" ? "/filmmaker" : "/browse"));
   }, [status, router, redirectParam, persona]);
 

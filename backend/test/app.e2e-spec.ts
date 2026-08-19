@@ -229,6 +229,22 @@ describe('B28 Oncodex API (e2e)', () => {
 
     expect(refreshed.body.data.accessToken).toBeDefined();
     expect(refreshed.body.data.refreshToken).not.toBe(refreshToken);
+    expect(refreshed.body.data.user?.email).toBe('streamer.free@b28.dev');
+    expect(refreshed.body.data.subscription?.plan).toBeDefined();
+  });
+
+  itIfDb('POST /api/v1/auth/login returns user and subscription in one response', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email: 'streamer.free@b28.dev', password: 'Password123!' })
+      .expect(201)
+      .expect((res) => {
+        expect(res.body.data.accessToken).toBeDefined();
+        expect(res.body.data.refreshToken).toBeDefined();
+        expect(res.body.data.user.email).toBe('streamer.free@b28.dev');
+        expect(res.body.data.user.roles).toContain('STREAMER');
+        expect(res.body.data.subscription.plan).toBeDefined();
+      });
   });
 
   itIfDb('GET /api/v1/users/me returns own profile only', async () => {

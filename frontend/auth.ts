@@ -44,23 +44,50 @@ async function apiGet<T>(path: string, accessToken: string): Promise<T> {
 }
 
 async function refreshTokens(refreshToken: string) {
-  return apiPost<{ accessToken: string; refreshToken: string }>("/auth/refresh", { refreshToken });
+  return apiPost<AuthSessionPayload>("/auth/refresh", { refreshToken });
+}
+
+interface AuthSessionPayload {
+  accessToken: string;
+  refreshToken: string;
+  user?: UserMe;
+  subscription?: SubscriptionInfo;
+}
+
+async function buildSessionUserFromPayload(payload: AuthSessionPayload) {
+  if (payload.user) {
+    return {
+      id: payload.user.id,
+      email: payload.user.email,
+      name: payload.user.displayName ?? payload.user.email,
+      roles: payload.user.roles,
+      accessToken: payload.accessToken,
+      refreshToken: payload.refreshToken,
+      subscription: payload.subscription ?? {
+        plan: "FREE_WITH_ADS",
+        status: "ACTIVE",
+        adsEnabled: true,
+        isPremium: false,
+        expiresAt: null,
+      },
+    };
+  }
+  return buildSessionUser(payload);
 }
 
 async function buildSessionUser(tokens: { accessToken: string; refreshToken: string }) {
-  const me = await apiGet<UserMe>("/users/me", tokens.accessToken);
-  let subscription: SubscriptionInfo = {
-    plan: "FREE_WITH_ADS",
-    status: "ACTIVE",
-    adsEnabled: true,
-    isPremium: false,
-    expiresAt: null,
-  };
-  try {
-    subscription = await apiGet<SubscriptionInfo>("/subscriptions/me", tokens.accessToken);
-  } catch {
-    // Keep default free tier if subscription lookup fails
-  }
+  const [me, subscription] = await Promise.all([
+    apiGet<UserMe>("/users/me", tokens.accessToken),
+    apiGet<SubscriptionInfo>("/subscriptions/me", tokens.accessToken).catch(
+      (): SubscriptionInfo => ({
+        plan: "FREE_WITH_ADS",
+        status: "ACTIVE",
+        adsEnabled: true,
+        isPremium: false,
+        expiresAt: null,
+      }),
+    ),
+  ]);
   return {
     id: me.id,
     email: me.email,
@@ -96,17 +123,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             });
           }
           if (credentials?.idToken) {
-            const tokens = await apiPost<{ accessToken: string; refreshToken: string }>("/auth/google", {
+            const payload = await apiPost<AuthSessionPayload>("/auth/google", {
               idToken: credentials.idToken,
             });
-            return await buildSessionUser(tokens);
+            return await buildSessionUserFromPayload(payload);
           }
           if (credentials?.email && credentials?.password) {
-            const tokens = await apiPost<{ accessToken: string; refreshToken: string }>("/auth/login", {
+            const payload = await apiPost<AuthSessionPayload>("/auth/login", {
               email: credentials.email,
               password: credentials.password,
             });
-            return await buildSessionUser(tokens);
+            return await buildSessionUserFromPayload(payload);
           }
         } catch (error) {
           console.error("[auth] credentials authorize failed:", error);
@@ -128,10 +155,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user, account, trigger, session }) {
       if (account?.provider === "google" && account.id_token) {
         try {
-          const tokens = await apiPost<{ accessToken: string; refreshToken: string }>("/auth/google", {
+          const payload = await apiPost<AuthSessionPayload>("/auth/google", {
             idToken: account.id_token,
           });
-          const sessionUser = await buildSessionUser(tokens);
+          const sessionUser = await buildSessionUserFromPayload(payload);
+          token.sub = sessionUser.id;
           token.accessToken = sessionUser.accessToken;
           token.refreshToken = sessionUser.refreshToken;
           token.roles = sessionUser.roles;
@@ -139,17 +167,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.accessTokenExpires = Date.now() + 14 * 60 * 1000;
           token.email = sessionUser.email;
           token.name = sessionUser.name;
+          return token;
         } catch {
           return token;
         }
       }
 
-      if (user) {
+      if (user && account?.provider === "credentials") {
+        token.sub = user.id;
         token.accessToken = user.accessToken;
         token.refreshToken = user.refreshToken;
         token.roles = user.roles;
         token.subscription = user.subscription;
         token.accessTokenExpires = Date.now() + 14 * 60 * 1000;
+        if (user.email) token.email = user.email;
+        if (user.name) token.name = user.name;
       }
 
       const expires = token.accessTokenExpires as number | undefined;
@@ -159,10 +191,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.accessToken = refreshed.accessToken;
           token.refreshToken = refreshed.refreshToken;
           token.accessTokenExpires = Date.now() + 14 * 60 * 1000;
-          token.subscription = await apiGet<SubscriptionInfo>(
-            "/subscriptions/me",
-            refreshed.accessToken,
-          );
+          if (refreshed.user) {
+            token.sub = refreshed.user.id;
+            token.roles = refreshed.user.roles;
+            token.email = refreshed.user.email;
+            token.name = refreshed.user.displayName ?? refreshed.user.email;
+          }
+          if (refreshed.subscription) {
+            token.subscription = refreshed.subscription;
+          } else {
+            token.subscription = await apiGet<SubscriptionInfo>(
+              "/subscriptions/me",
+              refreshed.accessToken,
+            );
+          }
         } catch {
           token.accessToken = undefined;
           token.refreshToken = undefined;

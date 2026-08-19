@@ -32,4 +32,4 @@ if ($login) {
   Probe POST "/api/v1/subscriptions/subscribe" @{ plan = "MONTHLY" } @{ Authorization = "Bearer $token" }
 }
 
-Write-Host "Done. Check debug-9ead3f.log for instrumentation output." -ForegroundColor Cyan
+Write-Host "Done."

@@ -5,6 +5,8 @@ import { PassportModule } from '@nestjs/passport';
 import { EmailModule } from '../common/email/email.module';
 import { FilmmakersModule } from '../filmmakers/filmmakers.module';
 import { SettingsModule } from '../settings/settings.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { UsersModule } from '../users/users.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -25,6 +27,8 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     EmailModule,
     SettingsModule,
     FilmmakersModule,
+    UsersModule,
+    SubscriptionsModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

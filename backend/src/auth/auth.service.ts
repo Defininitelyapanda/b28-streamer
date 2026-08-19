@@ -22,6 +22,8 @@ import { EmailService } from '../common/email/email.service';
 import { FilmmakersService } from '../filmmakers/filmmakers.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { UsersService } from '../users/users.service';
 import {
   ForgotPasswordDto,
   GoogleAuthDto,
@@ -46,6 +48,8 @@ export class AuthService {
     private emailService: EmailService,
     private settingsService: SettingsService,
     private filmmakersService: FilmmakersService,
+    private usersService: UsersService,
+    private subscriptionsService: SubscriptionsService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -135,12 +139,10 @@ export class AuthService {
       data: { failedLoginAttempts: 0, lockedUntil: null },
     });
 
-    await this.ensureDefaultSubscription(user.id);
-
-    return this.issueTokens(user.id, user.email, req);
+    return this.buildAuthResponse(user.id, user.email, req);
   }
 
-  private async ensureDefaultSubscription(userId: string) {
+  private async ensureDefaultSubscriptionIfMissing(userId: string) {
     await this.prisma.userSubscription.upsert({
       where: { userId },
       create: { userId, plan: 'FREE_WITH_ADS', adsEnabled: true },
@@ -161,12 +163,14 @@ export class AuthService {
       throw new UnauthorizedException({ code: 'INVALID_REFRESH_TOKEN', message: 'Invalid refresh token.' });
     }
 
+    const response = await this.buildAuthResponse(user.id, user.email, req, stored.id);
+
     await this.prisma.refreshToken.update({
       where: { id: stored.id },
       data: { revokedAt: new Date() },
     });
 
-    return this.issueTokens(user.id, user.email, req, stored.id);
+    return response;
   }
 
   async logout(refreshToken: string) {
@@ -384,7 +388,7 @@ export class AuthService {
       throw new UnauthorizedException({ code: 'ACCOUNT_SUSPENDED', message: 'Account is suspended.' });
     }
 
-    return this.issueTokens(user.id, user.email, req);
+    return this.buildAuthResponse(user.id, user.email, req);
   }
 
   async googleAuth(dto: GoogleAuthDto, req: Request) {
@@ -405,7 +409,7 @@ export class AuthService {
       if (oauth.user.status === UserStatus.SUSPENDED) {
         throw new UnauthorizedException({ code: 'ACCOUNT_SUSPENDED', message: 'Account is suspended.' });
       }
-      return this.issueTokens(oauth.user.id, oauth.user.email, req);
+      return this.buildAuthResponse(oauth.user.id, oauth.user.email, req);
     }
 
     let user = await this.prisma.user.findUnique({ where: { email } });
@@ -433,7 +437,7 @@ export class AuthService {
       update: { userId: user.id },
     });
 
-    return this.issueTokens(user.id, user.email, req);
+    return this.buildAuthResponse(user.id, user.email, req);
   }
 
   private normalizePhone(phone: string) {
@@ -508,6 +512,23 @@ export class AuthService {
       data.lockedUntil = new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000);
     }
     await this.prisma.user.update({ where: { id: userId }, data });
+  }
+
+  private async buildAuthResponse(userId: string, email: string, req: Request, rotatedFromId?: string) {
+    await this.ensureDefaultSubscriptionIfMissing(userId);
+
+    const [user, subscription] = await Promise.all([
+      this.usersService.getMe(userId),
+      this.subscriptionsService.getMySubscription(userId),
+    ]);
+
+    const tokens = await this.issueTokens(userId, email, req, rotatedFromId);
+
+    return {
+      ...tokens,
+      user,
+      subscription,
+    };
   }
 
   private async issueTokens(userId: string, email: string, req: Request, rotatedFromId?: string) {
