@@ -1,4 +1,15 @@
-import { assertProductionSafeEnv } from './env.validation';
+import { assertProductionSafeEnv, envValidationSchema } from './env.validation';
+
+describe('envValidationSchema', () => {
+  it('accepts Resend-style EMAIL_FROM with display name', () => {
+    const { error } = envValidationSchema.validate({
+      DATABASE_URL: 'postgresql://user:pass@localhost:5432/db',
+      JWT_ACCESS_SECRET: 'x'.repeat(32),
+      EMAIL_FROM: 'B28 Oncodex <noreply@b28.dev>',
+    });
+    expect(error).toBeUndefined();
+  });
+});
 
 describe('assertProductionSafeEnv', () => {
   it('rejects DEV_BYPASS_STREAMING in production', () => {

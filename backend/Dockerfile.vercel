@@ -1,8 +1,7 @@
-FROM node:20-bookworm-slim AS build
-WORKDIR /app
+FROM node:20-alpine AS build
+WORKDIR /opt/backend
 
-RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache openssl ca-certificates
 
 COPY package.json package-lock.json* ./
 RUN npm ci --include=dev
@@ -13,21 +12,29 @@ RUN npx prisma generate
 COPY . .
 RUN npm run build
 
-FROM node:20-bookworm-slim AS runner
-WORKDIR /app
-ENV NODE_ENV=production
-
-RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
-
+FROM node:20-alpine AS dependencies
+WORKDIR /opt/backend
 COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev
 
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/prisma ./prisma
-COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
+FROM node:20-alpine
+WORKDIR /opt/backend
 
+RUN apk add --no-cache openssl ca-certificates
+
+ENV NODE_ENV=production
 ENV VERCEL=1
-EXPOSE 8080
-CMD ["node", "dist/src/main.js"]
+ENV PORT=80
+
+COPY --from=dependencies /opt/backend/node_modules ./node_modules
+COPY --from=build /opt/backend/dist ./dist
+COPY --from=build /opt/backend/prisma ./prisma
+COPY --from=build /opt/backend/node_modules/.prisma ./node_modules/.prisma
+COPY --from=build /opt/backend/node_modules/@prisma ./node_modules/@prisma
+COPY package.json package-lock.json* ./
+
+RUN node -e "JSON.parse(require('fs').readFileSync('package.json','utf8'))" \
+  && chown -R node:node /opt/backend
+
+USER node
+CMD ["node", "/opt/backend/dist/src/main.js"]

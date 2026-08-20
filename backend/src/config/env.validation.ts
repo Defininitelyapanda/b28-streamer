@@ -9,7 +9,7 @@ export const envValidationSchema = Joi.object({
   API_PORT: Joi.number().default(4000),
   PORT: Joi.number().optional(),
   CORS_ORIGIN: Joi.string().allow('').optional(),
-  REDIS_URL: Joi.string().uri().optional(),
+  REDIS_URL: Joi.string().optional(),
   SWAGGER_ENABLED: Joi.string().valid('true', 'false').default('false'),
   AUTH_AUTO_VERIFY: Joi.string().valid('true', 'false').default('false'),
   DEV_BYPASS_STREAMING: Joi.string().valid('true', 'false').default('false'),
@@ -17,7 +17,8 @@ export const envValidationSchema = Joi.object({
   VERCEL: Joi.string().valid('1').optional(),
   GOOGLE_CLIENT_ID: Joi.string().optional(),
   RESEND_API_KEY: Joi.string().optional(),
-  EMAIL_FROM: Joi.string().email().optional(),
+  // Resend accepts "Display Name <email@domain.com>" — not a plain email string.
+  EMAIL_FROM: Joi.string().max(320).optional(),
   YOUTUBE_API_KEY: Joi.string().optional(),
   YOUTUBE_CHANNEL_ID: Joi.string().optional(),
   R2_ACCOUNT_ID: Joi.string().optional(),
@@ -34,5 +35,18 @@ export function assertProductionSafeEnv(env: NodeJS.ProcessEnv = process.env): v
 
   if (env.NODE_ENV === 'production' && !env.CRON_SECRET) {
     console.warn('[startup] CRON_SECRET is not set — internal YouTube sync cron will be disabled.');
+  }
+}
+
+/** Drop optional env values that would fail Joi and crash startup on Vercel. */
+export function sanitizeOptionalEnv(env: NodeJS.ProcessEnv = process.env): void {
+  if (env.REDIS_URL) {
+    try {
+      // eslint-disable-next-line no-new
+      new URL(env.REDIS_URL);
+    } catch {
+      console.warn('[startup] Ignoring invalid REDIS_URL — using in-memory cache.');
+      delete env.REDIS_URL;
+    }
   }
 }

@@ -101,8 +101,17 @@ export default function AuthDialog({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onBack, mode, persona, emailField.inputRef]);
 
+  async function waitForSession(maxAttempts = 15) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const session = await getSession();
+      if (session?.user?.id && session?.accessToken) return session;
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+    return getSession();
+  }
+
   async function completeSignIn(authMode: AuthMode) {
-    const session = await getSession();
+    const session = await waitForSession();
     const roles = session?.user?.roles ?? [];
 
     let hasFilmmakerApplication = false;
@@ -150,9 +159,16 @@ export default function AuthDialog({
       if (result?.error) {
         if (result.error === "Configuration") {
           setError("Auth is misconfigured. Set AUTH_SECRET in your environment.");
+        } else if (result.error === "CredentialsSignin") {
+          setError("Invalid email or password.");
         } else {
-          setError("Invalid email or password. Make sure the backend is running.");
+          setError("Sign in failed. The API may be unavailable — try again in a moment.");
         }
+        return;
+      }
+
+      if (!result?.ok) {
+        setError("Sign in failed. Please try again.");
         return;
       }
 
