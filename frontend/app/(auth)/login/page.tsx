@@ -16,7 +16,7 @@ export default async function LoginPage({
   const { redirect: redirectTo } = await searchParams;
 
   if (session?.accessToken) {
-    redirect(redirectTo ?? "/");
+    redirect(redirectTo ?? "/browse");
   }
 
   const catalog = await getCatalog();

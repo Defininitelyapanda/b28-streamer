@@ -2,7 +2,6 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
 import type { CatalogVideo } from "@/lib/types";
 import LoginBackdrop from "@/app/login/LoginBackdrop";
 import PersonaSelect from "@/app/login/PersonaSelect";
@@ -16,7 +15,6 @@ interface LoginExperienceProps {
 export default function LoginExperience({ videos }: LoginExperienceProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { status } = useSession();
 
   const redirectParam = searchParams.get("redirect");
   const [persona, setPersona] = useState<Persona | null>(() =>
@@ -35,12 +33,6 @@ export default function LoginExperience({ videos }: LoginExperienceProps) {
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
   }, []);
-
-  useEffect(() => {
-    if (status === "loading" || status !== "authenticated") return;
-    const currentPersona = persona ?? "streamer";
-    router.replace(redirectParam ?? (currentPersona === "filmmaker" ? "/filmmaker" : "/browse"));
-  }, [status, router, redirectParam, persona]);
 
   const updatePersonaParam = useCallback(
     (next: Persona | null) => {

@@ -54,6 +54,28 @@ interface AuthSessionPayload {
   subscription?: SubscriptionInfo;
 }
 
+function getAccessTokenExpiryMs(accessToken: string | undefined): number | null {
+  if (!accessToken) return null;
+  try {
+    const payload = JSON.parse(
+      Buffer.from(accessToken.split(".")[1], "base64url").toString("utf8"),
+    ) as { exp?: number };
+    return typeof payload.exp === "number" ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+function shouldRefreshAccessToken(
+  accessToken: string | undefined,
+  fallbackExpires?: number,
+): boolean {
+  const jwtExpires = getAccessTokenExpiryMs(accessToken);
+  const expiresAt = jwtExpires ?? fallbackExpires;
+  if (!expiresAt) return false;
+  return Date.now() >= expiresAt - 60_000;
+}
+
 async function buildSessionUserFromPayload(payload: AuthSessionPayload) {
   if (payload.user) {
     return {
@@ -164,7 +186,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.refreshToken = sessionUser.refreshToken;
           token.roles = sessionUser.roles;
           token.subscription = sessionUser.subscription;
-          token.accessTokenExpires = Date.now() + 14 * 60 * 1000;
+          token.accessTokenExpires =
+            getAccessTokenExpiryMs(sessionUser.accessToken) ?? Date.now() + 14 * 60 * 1000;
           token.email = sessionUser.email;
           token.name = sessionUser.name;
           return token;
@@ -179,18 +202,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.refreshToken = user.refreshToken;
         token.roles = user.roles;
         token.subscription = user.subscription;
-        token.accessTokenExpires = Date.now() + 14 * 60 * 1000;
+        token.accessTokenExpires =
+          getAccessTokenExpiryMs(user.accessToken) ?? Date.now() + 14 * 60 * 1000;
         if (user.email) token.email = user.email;
         if (user.name) token.name = user.name;
       }
 
       const expires = token.accessTokenExpires as number | undefined;
-      if (token.refreshToken && expires && Date.now() > expires) {
+      if (
+        token.refreshToken &&
+        shouldRefreshAccessToken(token.accessToken as string | undefined, expires)
+      ) {
         try {
           const refreshed = await refreshTokens(token.refreshToken as string);
           token.accessToken = refreshed.accessToken;
           token.refreshToken = refreshed.refreshToken;
-          token.accessTokenExpires = Date.now() + 14 * 60 * 1000;
+          token.accessTokenExpires = getAccessTokenExpiryMs(refreshed.accessToken) ?? undefined;
           if (refreshed.user) {
             token.sub = refreshed.user.id;
             token.roles = refreshed.user.roles;
@@ -206,8 +233,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             );
           }
         } catch {
-          token.accessToken = undefined;
-          token.refreshToken = undefined;
+          const stillValid = getAccessTokenExpiryMs(token.accessToken as string | undefined);
+          if (!stillValid || Date.now() >= stillValid) {
+            token.accessToken = undefined;
+            token.refreshToken = undefined;
+          }
         }
       } else if (trigger === "update" && token.accessToken) {
         const updateData = session as { subscription?: SubscriptionInfo } | undefined;
