@@ -1,5 +1,6 @@
 import type { SubscriptionInfo } from "@/lib/api-client";
 import type { Persona } from "@/app/login/login-utils";
+import type { CatalogVideo, PlaybackInfo } from "@/lib/types";
 
 export function hasFilmmakerRole(roles: string[]): boolean {
   return roles.includes("FILMMAKER");
@@ -18,6 +19,32 @@ export function canStream(
   if (process.env.NEXT_PUBLIC_DEV_BYPASS_STREAMING === "true") return true;
   if (hasFilmmakerRole(roles)) return true;
   return subscription?.isPremium === true;
+}
+
+export function isFreeYoutubeVideo(video: CatalogVideo): boolean {
+  return (
+    (video.accessTier ?? "FREE") === "FREE" &&
+    (video.playbackFormat ?? "YOUTUBE") === "YOUTUBE" &&
+    Boolean(video.videoId)
+  );
+}
+
+export function buildCatalogPlayback(video: CatalogVideo): PlaybackInfo {
+  return {
+    playbackFormat: "YOUTUBE",
+    videoId: video.videoId,
+    accessTier: video.accessTier ?? "FREE",
+    adsEnabled: false,
+  };
+}
+
+export function canWatchVideo(
+  video: CatalogVideo,
+  subscription: SubscriptionInfo | null | undefined,
+  roles: string[],
+): boolean {
+  if (isFreeYoutubeVideo(video)) return true;
+  return canStream(subscription, roles);
 }
 
 export function resolveWatchDestination(

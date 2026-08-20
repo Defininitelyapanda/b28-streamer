@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import type { CatalogVideo, PlaybackInfo } from "@/lib/types";
 import YouTubePlayer from "@/components/player/YouTubePlayer";
 import VideoPlayer from "@/components/player/VideoPlayer";
@@ -9,7 +10,11 @@ import RelatedList from "@/components/player/RelatedList";
 import WatchlistButton from "@/components/cards/WatchlistButton";
 import { addToHistory, getProgressMap, saveProgress } from "@/lib/watchHistory";
 import { useAuth } from "@/lib/auth-context";
-import { canStream } from "@/lib/streaming-access";
+import {
+  buildCatalogPlayback,
+  canWatchVideo,
+  isFreeYoutubeVideo,
+} from "@/lib/streaming-access";
 import { getPlaybackInfo } from "@/lib/api-client";
 
 interface WatchClientProps {
@@ -26,12 +31,20 @@ export default function WatchClient({
   initialPlayback,
 }: WatchClientProps) {
   const { user, subscription, loading: authLoading } = useAuth();
+  const { data: session, status: sessionStatus } = useSession();
   const roles = user?.roles ?? [];
+  const accessToken = session?.accessToken;
+  const catalogPlayback = useMemo(
+    () => (isFreeYoutubeVideo(video) ? buildCatalogPlayback(video) : null),
+    [video],
+  );
   const [startSeconds, setStartSeconds] = useState(0);
   const [playbackError, setPlaybackError] = useState("");
-  const [playback, setPlayback] = useState<PlaybackInfo | null>(initialPlayback);
+  const [playback, setPlayback] = useState<PlaybackInfo | null>(
+    initialPlayback ?? catalogPlayback,
+  );
   const [loadingPlayback, setLoadingPlayback] = useState(
-    canWatchFromServer && !initialPlayback,
+    canWatchFromServer && !initialPlayback && !catalogPlayback,
   );
 
   const slug = video.id;
@@ -39,11 +52,24 @@ export default function WatchClient({
   const posterUrl = video.posterUrl ?? video.thumbnail;
 
   const canWatchNow =
-    canWatchFromServer || (!authLoading && canStream(subscription, roles));
-  const needsUpsell = !canWatchNow && !authLoading;
+    canWatchFromServer ||
+    canWatchVideo(video, subscription, roles) ||
+    Boolean(catalogPlayback);
+  const needsUpsell = !canWatchNow && !authLoading && sessionStatus !== "loading";
+  const needsSignIn =
+    canWatchNow &&
+    !catalogPlayback &&
+    !authLoading &&
+    sessionStatus === "unauthenticated";
   const showPlayer = canWatchNow && !loadingPlayback && !playbackError && playback !== null;
 
   useEffect(() => {
+    if (catalogPlayback) {
+      setPlayback(catalogPlayback);
+      setLoadingPlayback(false);
+      return;
+    }
+
     if (initialPlayback) {
       setPlayback(initialPlayback);
       setLoadingPlayback(false);
@@ -55,10 +81,21 @@ export default function WatchClient({
       return;
     }
 
+    if (sessionStatus === "loading" || authLoading) {
+      return;
+    }
+
+    if (!accessToken) {
+      setPlayback(null);
+      setPlaybackError("signin");
+      setLoadingPlayback(false);
+      return;
+    }
+
     setLoadingPlayback(true);
     setPlaybackError("");
 
-    getPlaybackInfo(slug)
+    getPlaybackInfo(slug, accessToken)
       .then(setPlayback)
       .catch((err) => {
         const message = err instanceof Error ? err.message : "Playback unavailable";
@@ -67,12 +104,22 @@ export default function WatchClient({
           message.toLowerCase().includes("subscription")
         ) {
           setPlaybackError("subscription");
+        } else if (message.toLowerCase().includes("authentication")) {
+          setPlaybackError("signin");
         } else {
           setPlaybackError(message);
         }
       })
       .finally(() => setLoadingPlayback(false));
-  }, [slug, canWatchNow, initialPlayback]);
+  }, [
+    slug,
+    canWatchNow,
+    initialPlayback,
+    catalogPlayback,
+    accessToken,
+    sessionStatus,
+    authLoading,
+  ]);
 
   useEffect(() => {
     addToHistory(slug);
@@ -97,6 +144,21 @@ export default function WatchClient({
         </p>
         <Link href={`/offers?redirect=${encodeURIComponent(watchPath)}`} className="btn btn-primary text-sm">
           View plans
+        </Link>
+      </div>
+    );
+  } else if (needsSignIn || playbackError === "signin") {
+    overlay = (
+      <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/90 p-6 text-center">
+        <p className="mb-2 text-lg font-bold text-white">Sign in to watch</p>
+        <p className="mb-4 max-w-md text-sm text-muted">
+          Log in to your B28 account to start playback.
+        </p>
+        <Link
+          href={`/login?redirect=${encodeURIComponent(watchPath)}`}
+          className="btn btn-primary text-sm"
+        >
+          Sign in
         </Link>
       </div>
     );

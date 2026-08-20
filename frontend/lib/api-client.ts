@@ -197,8 +197,16 @@ export async function addPaymentMethod(body: {
   });
 }
 
-export async function getPlaybackInfo(slug: string): Promise<PlaybackInfo> {
-  return apiRequest<PlaybackInfo>(`/streaming/play/${encodeURIComponent(slug)}`);
+export async function getPlaybackInfo(
+  slug: string,
+  accessTokenOverride?: string | null,
+): Promise<PlaybackInfo> {
+  return apiRequest<PlaybackInfo>(
+    `/streaming/play/${encodeURIComponent(slug)}`,
+    {},
+    true,
+    accessTokenOverride,
+  );
 }
 
 export async function getContinueWatching() {

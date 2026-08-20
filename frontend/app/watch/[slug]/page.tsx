@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getWatchPageData } from "@/lib/catalog";
-import { canStream, resolveWatchDestination } from "@/lib/streaming-access";
+import {
+  buildCatalogPlayback,
+  canWatchVideo,
+  isFreeYoutubeVideo,
+  resolveWatchDestination,
+} from "@/lib/streaming-access";
 import { fetchPlaybackInfo } from "@/lib/streaming-server";
 import WatchClient from "@/components/watch/WatchClient";
 
@@ -34,12 +39,13 @@ export default async function WatchPage({ params }: WatchPageProps) {
 
   const roles = session?.user?.roles ?? [];
   const watchPath = `/watch/${encodeURIComponent(slug)}`;
-  const upsellDestination = resolveWatchDestination(session?.subscription, roles, watchPath);
+  const canWatch = canWatchVideo(video, session?.subscription, roles);
+  const upsellDestination = canWatch ? null : resolveWatchDestination(session?.subscription, roles, watchPath);
   if (upsellDestination) redirect(upsellDestination);
 
-  const canWatch = canStream(session?.subscription, roles);
-  const initialPlayback =
-    canWatch && session?.accessToken
+  const initialPlayback = isFreeYoutubeVideo(video)
+    ? buildCatalogPlayback(video)
+    : canWatch && session?.accessToken
       ? await fetchPlaybackInfo(slug, session.accessToken)
       : null;
 

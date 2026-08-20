@@ -1,14 +1,5 @@
 import type { CatalogVideo } from "@/lib/types";
 
-export function shuffle<T>(list: T[]): T[] {
-  const arr = [...list];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
 export function scoreVideo(v: CatalogVideo): number {
   return parseFloat(v.rating || "0") || 0;
 }
@@ -96,6 +87,13 @@ export interface ContentRow {
   items: CatalogVideo[];
 }
 
+export function pickByGenre(videos: CatalogVideo[], genre: string, limit: number): CatalogVideo[] {
+  return [...videos]
+    .filter((v) => v.genre === genre)
+    .sort(compareVideos)
+    .slice(0, limit);
+}
+
 export function getRowsFor(videos: CatalogVideo[], genreFilter: string): ContentRow[] {
   const base =
     genreFilter && genreFilter !== "All" && genreFilter !== "Popular"
@@ -103,21 +101,21 @@ export function getRowsFor(videos: CatalogVideo[], genreFilter: string): Content
       : videos;
 
   if (genreFilter === "Popular") {
-    const items = shuffle(base).slice(0, 12);
+    const items = pickPopularVideos(base, 12);
     return items.length ? [{ title: "Popular on B28", items }] : [];
   }
 
   if (genreFilter && genreFilter !== "All") {
-    const items = shuffle(base).slice(0, 10);
+    const items = [...base].sort(compareVideos).slice(0, 10);
     return items.length ? [{ title: genreFilter, items }] : [];
   }
 
   return [
-    { title: "Trending B28 Originals", items: shuffle(videos).slice(0, 12) },
-    { title: "Drama", items: shuffle(videos.filter((v) => v.genre === "Drama")).slice(0, 10) },
-    { title: "Action", items: shuffle(videos.filter((v) => v.genre === "Action")).slice(0, 10) },
-    { title: "Thriller", items: shuffle(videos.filter((v) => v.genre === "Thriller")).slice(0, 10) },
-    { title: "Horror", items: shuffle(videos.filter((v) => v.genre === "Horror")).slice(0, 10) },
+    { title: "Trending B28 Originals", items: pickPopularVideos(videos, 12) },
+    { title: "Drama", items: pickByGenre(videos, "Drama", 10) },
+    { title: "Action", items: pickByGenre(videos, "Action", 10) },
+    { title: "Thriller", items: pickByGenre(videos, "Thriller", 10) },
+    { title: "Horror", items: pickByGenre(videos, "Horror", 10) },
   ].filter((r) => r.items.length > 0);
 }
 
