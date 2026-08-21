@@ -11,6 +11,7 @@
     "deploy": "vercel --prod"
   },
   "dependencies": {
+    "hls.js": "^1.7.1",
     "next": "^15.1.0",
     "next-auth": "^5.0.0-beta.32",
     "react": "^19.0.0",

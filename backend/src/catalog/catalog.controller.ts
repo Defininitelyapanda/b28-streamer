@@ -23,11 +23,13 @@ export class CatalogController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('genre') genre?: string,
+    @Query('q') q?: string,
   ) {
     return this.catalogService.getPublicCatalog({
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
       genre,
+      q,
     });
   }
 

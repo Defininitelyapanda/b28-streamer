@@ -14,6 +14,7 @@ export interface CatalogPageQuery {
   page?: number;
   limit?: number;
   genre?: string;
+  q?: string;
 }
 
 function isProductionDeploy(): boolean {
@@ -46,6 +47,7 @@ function buildCatalogQuery(params: CatalogPageQuery = {}): string {
   if (params.page) search.set("page", String(params.page));
   if (params.limit) search.set("limit", String(params.limit));
   if (params.genre && params.genre !== "All") search.set("genre", params.genre);
+  if (params.q?.trim()) search.set("q", params.q.trim());
   const qs = search.toString();
   return qs ? `?${qs}` : "";
 }
@@ -214,7 +216,7 @@ async function fetchRelatedBySlug(
 }
 
 export const getCatalog = cache(async function getCatalog(): Promise<CatalogData> {
-  return resolveCatalog({ limit: 24 });
+  return getCatalogPage({ limit: 24 });
 });
 
 export const getCatalogPage = cache(async function getCatalogPage(
@@ -224,6 +226,18 @@ export const getCatalogPage = cache(async function getCatalogPage(
     page: params.page ?? 1,
     limit: params.limit ?? 24,
     genre: params.genre,
+    q: params.q,
+  });
+});
+
+export const searchCatalog = cache(async function searchCatalog(
+  query: string,
+  params: Omit<CatalogPageQuery, "q"> = {},
+): Promise<CatalogData> {
+  return getCatalogPage({
+    ...params,
+    q: query,
+    limit: params.limit ?? 48,
   });
 });
 

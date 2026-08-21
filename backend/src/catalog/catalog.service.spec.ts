@@ -77,9 +77,29 @@ describe('CatalogService', () => {
     expect(result.videos[0].desc).toBe('');
     expect(result.videos[0].videoId).toBe('abc123');
     expect(cache.set).toHaveBeenCalledWith(
-      'catalog:list:1:100:all',
+      'catalog:list:1:100:all:all',
       expect.objectContaining({ total: 1 }),
       60,
+    );
+  });
+
+  it('applies search filter when q is provided', async () => {
+    (cache.get as jest.Mock).mockResolvedValue(null);
+    (prisma.catalogVideo.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.catalogVideo.count as jest.Mock).mockResolvedValue(0);
+    (prisma.catalogVideo.findFirst as jest.Mock).mockResolvedValue(null);
+
+    await service.getPublicCatalog({ q: 'Threshold' });
+
+    expect(prisma.catalogVideo.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: [
+            { title: { contains: 'Threshold', mode: 'insensitive' } },
+            { description: { contains: 'Threshold', mode: 'insensitive' } },
+          ],
+        }),
+      }),
     );
   });
 

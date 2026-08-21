@@ -27,6 +27,7 @@ export interface CatalogListQuery {
   page?: number;
   limit?: number;
   genre?: string;
+  q?: string;
 }
 
 const CATALOG_LIST_SELECT = {
@@ -59,7 +60,8 @@ export class CatalogService {
     const page = Math.max(1, query.page ?? 1);
     const limit = Math.min(100, Math.max(1, query.limit ?? 100));
     const genreKey = query.genre && query.genre !== 'All' ? query.genre : 'all';
-    const cacheKey = `catalog:list:${page}:${limit}:${genreKey}`;
+    const searchKey = query.q?.trim().toLowerCase() || 'all';
+    const cacheKey = `catalog:list:${page}:${limit}:${genreKey}:${searchKey}`;
 
     const cached = await this.cache.get<{
       videos: CatalogVideoDto[];
@@ -74,6 +76,13 @@ export class CatalogService {
     const where: Prisma.CatalogVideoWhereInput = { published: true };
     if (query.genre && query.genre !== 'All') {
       where.genre = query.genre;
+    }
+    const search = query.q?.trim();
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+      ];
     }
 
     const [videos, total, latest] = await Promise.all([

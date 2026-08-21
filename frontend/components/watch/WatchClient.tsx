@@ -193,6 +193,7 @@ export default function WatchClient({
                 startSeconds={startSeconds}
                 onProgress={handleProgress}
                 poster={posterUrl}
+                playbackFormat={playback.playbackFormat}
               />
             )}
             {showPlayer &&

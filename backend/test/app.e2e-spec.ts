@@ -59,6 +59,26 @@ describe('B28 Oncodex API (e2e)', () => {
     });
   };
 
+  function buildTestCatalogUpsert(
+    slug: string,
+    overrides: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    return {
+      slug,
+      title: 'Test catalog video',
+      thumbnail: 'https://example.com/poster.jpg',
+      date: '2026-01-01',
+      genre: 'Drama',
+      description: 'Test description',
+      rating: '8.0',
+      sourceType: 'youtube',
+      videoId: slug,
+      type: 'film',
+      seriesGroup: 'Test catalog video',
+      ...overrides,
+    };
+  }
+
   itIfDb('GET /health returns ok', async () => {
     await request(app.getHttpServer())
       .get('/health')
@@ -116,11 +136,13 @@ describe('B28 Oncodex API (e2e)', () => {
 
   itIfDb('GET /api/v1/streaming/play/:slug allows free YouTube without auth', async () => {
     const list = await request(app.getHttpServer()).get('/api/v1/catalog').expect(200);
-    const slug = list.body.data.videos[0]?.id;
-    if (!slug) return;
+    const freeYoutube = list.body.data.videos.find(
+      (video: { id?: string; videoId?: string }) => video.videoId && video.id,
+    );
+    if (!freeYoutube?.id) return;
 
     await request(app.getHttpServer())
-      .get(`/api/v1/streaming/play/${encodeURIComponent(slug)}`)
+      .get(`/api/v1/streaming/play/${encodeURIComponent(freeYoutube.id)}`)
       .expect(200)
       .expect((res) => {
         expect(res.body.success).toBe(true);
@@ -138,6 +160,25 @@ describe('B28 Oncodex API (e2e)', () => {
         expect(res.body.data.limit).toBe(5);
         expect(res.body.data.total).toBeGreaterThanOrEqual(0);
         expect(res.body.data.videos.length).toBeLessThanOrEqual(5);
+      });
+  });
+
+  itIfDb('GET /api/v1/catalog supports search query', async () => {
+    const list = await request(app.getHttpServer()).get('/api/v1/catalog').expect(200);
+    const title = list.body.data.videos[0]?.title as string | undefined;
+    if (!title) return;
+
+    const term = title.split(' ')[0];
+    await request(app.getHttpServer())
+      .get(`/api/v1/catalog?q=${encodeURIComponent(term)}&limit=10`)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.data.videos.length).toBeGreaterThan(0);
+        expect(
+          res.body.data.videos.some((v: { title: string }) =>
+            v.title.toLowerCase().includes(term.toLowerCase()),
+          ),
+        ).toBe(true);
       });
   });
 
@@ -203,14 +244,14 @@ describe('B28 Oncodex API (e2e)', () => {
     await request(app.getHttpServer())
       .put('/api/v1/admin/catalog')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({
-        slug,
-        title: 'R2 playback test',
-        thumbnail: 'https://example.com/poster.jpg',
-        playbackFormat: 'MP4',
-        accessTier: 'FREE',
-        storageKey: 'films/r2-test/demo.mp4',
-      })
+      .send(
+        buildTestCatalogUpsert(slug, {
+          title: 'R2 playback test',
+          playbackFormat: 'MP4',
+          accessTier: 'FREE',
+          storageKey: 'films/r2-test/demo.mp4',
+        }),
+      )
       .expect(200);
 
     const filmmaker = await request(app.getHttpServer())
