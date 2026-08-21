@@ -4,13 +4,20 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import type { CatalogVideo, PlaybackInfo } from "@/lib/types";
-import YouTubePlayer from "@/components/player/YouTubePlayer";
 import VideoPlayer from "@/components/player/VideoPlayer";
 import RelatedList from "@/components/player/RelatedList";
 import WatchlistButton from "@/components/cards/WatchlistButton";
 import { addToHistory, getProgressMap, saveProgress } from "@/lib/watchHistory";
 import { useAuth } from "@/lib/auth-context";
-import { canWatchVideo, isFreeYoutubeVideo } from "@/lib/streaming-access";
+import {
+  buildLoginUrl,
+  buildOffersUrl,
+  canStream,
+  canWatchVideo,
+  isPublicTrailer,
+  needsSignInForVideo,
+  needsSubscriptionForVideo,
+} from "@/lib/streaming-access";
 import { getPlaybackInfo } from "@/lib/api-client";
 
 interface WatchClientProps {
@@ -30,7 +37,7 @@ export default function WatchClient({
   const { data: session, status: sessionStatus } = useSession();
   const roles = user?.roles ?? [];
   const accessToken = session?.accessToken;
-  const isFreeYoutube = isFreeYoutubeVideo(video);
+  const publicTrailer = isPublicTrailer(video);
 
   const [startSeconds, setStartSeconds] = useState(0);
   const [playbackError, setPlaybackError] = useState("");
@@ -42,16 +49,24 @@ export default function WatchClient({
   const slug = video.id;
   const watchPath = `/watch/${encodeURIComponent(slug)}`;
   const posterUrl = video.posterUrl ?? video.thumbnail;
+  const isAuthenticated = sessionStatus === "authenticated";
 
   const canWatchNow =
     canWatchFromServer || canWatchVideo(video, subscription, roles);
-  const needsUpsell = !canWatchNow && !authLoading && sessionStatus !== "loading";
-  const needsSignIn =
-    canWatchNow &&
-    !isFreeYoutube &&
+  const showSignIn =
     !authLoading &&
-    sessionStatus === "unauthenticated";
-  const showPlayer = canWatchNow && !loadingPlayback && !playbackError && playback !== null;
+    sessionStatus !== "loading" &&
+    needsSignInForVideo(video, isAuthenticated);
+  const showSubscribe =
+    !authLoading &&
+    sessionStatus !== "loading" &&
+    needsSubscriptionForVideo(video, subscription, roles, isAuthenticated);
+  const showPlayer =
+    canWatchNow &&
+    !loadingPlayback &&
+    !playbackError &&
+    playback !== null &&
+    Boolean(playback.url);
 
   useEffect(() => {
     if (initialPlayback) {
@@ -60,16 +75,16 @@ export default function WatchClient({
       return;
     }
 
-    if (!canWatchNow) {
+    if (!canWatchNow || showSignIn || showSubscribe) {
       setLoadingPlayback(false);
       return;
     }
 
-    if (!isFreeYoutube && (sessionStatus === "loading" || authLoading)) {
+    if (!publicTrailer && (sessionStatus === "loading" || authLoading)) {
       return;
     }
 
-    if (!isFreeYoutube && !accessToken) {
+    if (!publicTrailer && !accessToken) {
       setPlayback(null);
       setPlaybackError("signin");
       setLoadingPlayback(false);
@@ -79,7 +94,7 @@ export default function WatchClient({
     setLoadingPlayback(true);
     setPlaybackError("");
 
-    getPlaybackInfo(slug, isFreeYoutube ? null : accessToken)
+    getPlaybackInfo(slug, publicTrailer ? null : accessToken)
       .then(setPlayback)
       .catch((err) => {
         const message = err instanceof Error ? err.message : "Playback unavailable";
@@ -102,7 +117,9 @@ export default function WatchClient({
     accessToken,
     sessionStatus,
     authLoading,
-    isFreeYoutube,
+    publicTrailer,
+    showSignIn,
+    showSubscribe,
   ]);
 
   useEffect(() => {
@@ -119,30 +136,37 @@ export default function WatchClient({
 
   let overlay: React.ReactNode = null;
 
-  if (needsUpsell || playbackError === "subscription") {
+  if (showSubscribe || playbackError === "subscription") {
     overlay = (
       <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/90 p-6 text-center">
-        <p className="mb-2 text-lg font-bold text-white">Subscribe to watch</p>
+        <p className="mb-2 text-lg font-bold text-white">Choose a plan to watch</p>
         <p className="mb-4 max-w-md text-sm text-muted">
-          A B28 subscription is required to stream this title.
+          Join B28 with a subscription to stream this title.
         </p>
-        <Link href={`/offers?redirect=${encodeURIComponent(watchPath)}`} className="btn btn-primary text-sm">
+        <Link href={buildOffersUrl(watchPath)} className="btn btn-primary text-sm">
           View plans
         </Link>
       </div>
     );
-  } else if (needsSignIn || playbackError === "signin") {
+  } else if (showSignIn || playbackError === "signin") {
+    const signupUrl = buildLoginUrl({
+      redirect: watchPath,
+      mode: "signup",
+      persona: "streamer",
+    });
+    const signinUrl = buildLoginUrl({ redirect: watchPath, persona: "streamer" });
+
     overlay = (
       <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/90 p-6 text-center">
         <p className="mb-2 text-lg font-bold text-white">Sign in to watch</p>
         <p className="mb-4 max-w-md text-sm text-muted">
-          Log in to your B28 account to start playback.
+          Join B28 with a subscription to stream this title.
         </p>
-        <Link
-          href={`/login?redirect=${encodeURIComponent(watchPath)}`}
-          className="btn btn-primary text-sm"
-        >
-          Sign in
+        <Link href={signupUrl} className="btn btn-primary text-sm">
+          Join B28
+        </Link>
+        <Link href={signinUrl} className="mt-3 text-sm text-muted underline transition hover:text-white">
+          Already have an account? Sign in
         </Link>
       </div>
     );
@@ -177,15 +201,24 @@ export default function WatchClient({
               className="absolute inset-0 h-full w-full object-cover"
             />
             <div className="absolute inset-0 bg-black/30" />
-            {overlay}
-            {showPlayer && playback?.playbackFormat === "YOUTUBE" && playback.videoId && (
-              <YouTubePlayer
-                key={`${slug}-${playback.videoId}`}
-                videoId={playback.videoId}
-                startSeconds={startSeconds}
-                onProgress={handleProgress}
-              />
+            {publicTrailer && (
+              <span className="absolute left-3 top-3 z-10 rounded bg-white/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-white">
+                Trailer
+              </span>
             )}
+            {overlay}
+            {canWatchNow &&
+              !loadingPlayback &&
+              !playbackError &&
+              playback?.playbackFormat === "YOUTUBE" &&
+              !playback.url && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/90 p-6 text-center">
+                  <p className="mb-2 text-sm font-semibold text-white">Stream updating</p>
+                  <p className="max-w-md text-sm text-muted">
+                    This title is being moved to B28 streaming. Upload an R2 MP4 in the admin dashboard.
+                  </p>
+                </div>
+              )}
             {showPlayer && playback?.url && (
               <VideoPlayer
                 key={`${slug}-video`}
@@ -196,19 +229,11 @@ export default function WatchClient({
                 playbackFormat={playback.playbackFormat}
               />
             )}
-            {showPlayer &&
-              playback &&
-              playback.playbackFormat !== "YOUTUBE" &&
-              !playback.url && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center text-sm text-muted">
-                  Playback format not supported
-                </div>
-              )}
           </div>
           <div className="p-5">
             <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
               <h1 className="text-xl font-bold leading-snug md:text-2xl">{video.title}</h1>
-              <WatchlistButton videoId={slug} compact />
+              {canStream(subscription, roles) && <WatchlistButton videoId={slug} compact />}
             </div>
             <div className="mb-3 flex flex-wrap gap-2 text-sm text-muted">
               <span>{video.date}</span>

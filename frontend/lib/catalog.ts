@@ -67,10 +67,11 @@ export function normalizeMovie(
   const videoId = item.videoId
     ? String(item.videoId)
     : String(item.youtubeId || item.source_id || item.embedId || id);
-  const thumbnail =
-    String(item.thumbnail || item.poster || item.image || item.cover) ||
-    `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
   const sourceType = String(item.sourceType || item.source || item.provider || "youtube");
+  const explicitThumb = String(item.thumbnail || item.poster || item.image || item.cover || "");
+  const thumbnail =
+    explicitThumb ||
+    (sourceType === "r2" ? "" : `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`);
   const type = (item.type as CatalogVideo["type"]) || "film";
   const seriesGroup = String(item.seriesGroup || title.split("|")[0].trim());
 

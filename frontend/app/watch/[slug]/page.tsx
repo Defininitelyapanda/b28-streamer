@@ -1,11 +1,7 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { getWatchPageData } from "@/lib/catalog";
-import {
-  canWatchVideo,
-  isFreeYoutubeVideo,
-  resolveWatchDestination,
-} from "@/lib/streaming-access";
+import { canWatchVideo, isPublicTrailer } from "@/lib/streaming-access";
 import { fetchPlaybackInfo } from "@/lib/streaming-server";
 import WatchClient from "@/components/watch/WatchClient";
 
@@ -37,14 +33,11 @@ export default async function WatchPage({ params }: WatchPageProps) {
   if (!video) notFound();
 
   const roles = session?.user?.roles ?? [];
-  const watchPath = `/watch/${encodeURIComponent(slug)}`;
   const canWatch = canWatchVideo(video, session?.subscription, roles);
-  const upsellDestination = canWatch ? null : resolveWatchDestination(session?.subscription, roles, watchPath);
-  if (upsellDestination) redirect(upsellDestination);
 
   let initialPlayback = null;
   if (canWatch) {
-    if (isFreeYoutubeVideo(video)) {
+    if (isPublicTrailer(video)) {
       initialPlayback = await fetchPlaybackInfo(slug);
     } else if (session?.accessToken) {
       initialPlayback = await fetchPlaybackInfo(slug, session.accessToken);

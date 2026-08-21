@@ -17,6 +17,7 @@ type AuthMode = "signin" | "signup";
 interface AuthDialogProps {
   persona: Persona;
   redirectParam: string | null;
+  initialMode?: AuthMode;
   onBack: () => void;
   onSuccess: (url: string) => void;
   onMismatch: (message: string) => void;
@@ -35,13 +36,14 @@ function devDefaultPassword(persona: Persona) {
 export default function AuthDialog({
   persona,
   redirectParam,
+  initialMode = "signin",
   onBack,
   onSuccess,
   onMismatch,
 }: AuthDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
-  const [mode, setMode] = useState<AuthMode>("signin");
+  const [mode, setMode] = useState<AuthMode>(initialMode);
   const emailField = useAutofillField(devDefaultEmail(persona));
   const passwordField = useAutofillField(devDefaultPassword(persona));
   const [displayName, setDisplayName] = useState("");
@@ -228,7 +230,7 @@ export default function AuthDialog({
   const subtitle = isSignUp
     ? isFilmmaker
       ? "Start distributing your films on B28."
-      : "Subscribe to stream Kenyan films and originals."
+      : "Create your account, then pick a plan to start watching."
     : isFilmmaker
       ? "Access your filmmaker hub."
       : "Sign in to browse and watch on B28.";
@@ -369,7 +371,9 @@ export default function AuthDialog({
               ? "Creating account…"
               : "Signing in…"
             : isSignUp
-              ? "Create account"
+              ? persona === "streamer"
+                ? "Create account & choose plan"
+                : "Create account"
               : "Sign in"}
         </button>
       </form>

@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { getCatalog } from "@/lib/catalog";
 import { pickPopularVideos } from "@/lib/catalog-utils";
+import { resolveAuthenticatedLoginRedirect } from "@/lib/streaming-access";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import LoginExperience from "@/app/login/LoginExperience";
@@ -16,7 +17,14 @@ export default async function LoginPage({
   const { redirect: redirectTo } = await searchParams;
 
   if (session?.accessToken) {
-    redirect(redirectTo ?? "/browse");
+    const target = redirectTo ?? "/browse";
+    redirect(
+      resolveAuthenticatedLoginRedirect(
+        session.subscription ?? null,
+        session.user?.roles ?? [],
+        target,
+      ),
+    );
   }
 
   const catalog = await getCatalog();

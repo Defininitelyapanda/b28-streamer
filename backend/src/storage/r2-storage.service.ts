@@ -1,4 +1,4 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -20,6 +20,7 @@ export class R2StorageService {
         region: 'auto',
         endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
         credentials: { accessKeyId, secretAccessKey },
+        forcePathStyle: true,
       });
     }
   }
@@ -52,6 +53,19 @@ export class R2StorageService {
       url,
       expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
     }));
+  }
+
+  getPublicObjectUrl(key: string): string {
+    const domain = this.config.get<string>('R2_PUBLIC_DOMAIN')?.replace(/\/$/, '');
+    if (!domain) {
+      throw new BadRequestException({
+        code: 'R2_PUBLIC_DOMAIN_REQUIRED',
+        message:
+          'R2_PUBLIC_DOMAIN is required for public image URLs. Set an R2 custom domain or pub-xxx.r2.dev URL.',
+      });
+    }
+    const normalizedDomain = domain.startsWith('http') ? domain : `https://${domain}`;
+    return `${normalizedDomain}/${key}`;
   }
 
   private ensureConfigured() {

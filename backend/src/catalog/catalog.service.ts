@@ -2,7 +2,9 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PlaybackFormat, Prisma, VideoAccessTier } from '@prisma/client';
 import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { UpdateCatalogVideoDto, UpsertCatalogVideoDto } from './dto/catalog.dto';
+import { UpdateCatalogVideoDto, UpsertCatalogVideoDto, PublishTitleBundleDto } from './dto/catalog.dto';
+import { trailerSlugForBaseSlug } from './catalog-upload.util';
+import type { R2StorageService } from '../storage/r2-storage.service';
 
 export interface CatalogVideoDto {
   id: string;
@@ -179,7 +181,7 @@ export class CatalogService {
         type: dto.type,
         seriesGroup: dto.seriesGroup,
         accessTier: dto.accessTier ?? VideoAccessTier.FREE,
-        playbackFormat: dto.playbackFormat ?? PlaybackFormat.YOUTUBE,
+        playbackFormat: dto.playbackFormat ?? PlaybackFormat.MP4,
         storageKey: dto.storageKey ?? null,
         durationSeconds: dto.durationSeconds ?? null,
         posterUrl: dto.posterUrl ?? null,
@@ -197,7 +199,7 @@ export class CatalogService {
         type: dto.type,
         seriesGroup: dto.seriesGroup,
         accessTier: dto.accessTier ?? VideoAccessTier.FREE,
-        playbackFormat: dto.playbackFormat ?? PlaybackFormat.YOUTUBE,
+        playbackFormat: dto.playbackFormat ?? PlaybackFormat.MP4,
         storageKey: dto.storageKey ?? null,
         durationSeconds: dto.durationSeconds ?? null,
         posterUrl: dto.posterUrl ?? null,
@@ -228,45 +230,6 @@ export class CatalogService {
 
     await this.cache.invalidateCatalog();
     return { count, syncedAt: new Date().toISOString() };
-  }
-
-  async bulkUpsertFromYoutube(items: UpsertCatalogVideoDto[]) {
-    const chunkSize = 25;
-    let count = 0;
-
-    for (let i = 0; i < items.length; i += chunkSize) {
-      const chunk = items.slice(i, i + chunkSize);
-      await this.prisma.$transaction(
-        chunk.map((item) =>
-          this.prisma.catalogVideo.upsert({
-            where: { slug: item.slug },
-            create: this.buildCreateData(item),
-            update: this.buildYoutubeSyncUpdateData(item),
-          }),
-        ),
-      );
-      count += chunk.length;
-    }
-
-    await this.cache.invalidateCatalog();
-    return { count, syncedAt: new Date().toISOString() };
-  }
-
-  async unpublishStaleYoutubeVideos(activeSlugs: string[]) {
-    const result = await this.prisma.catalogVideo.updateMany({
-      where: {
-        sourceType: 'youtube',
-        published: true,
-        slug: { notIn: activeSlugs },
-      },
-      data: { published: false },
-    });
-
-    if (result.count > 0) {
-      await this.cache.invalidateCatalog();
-    }
-
-    return result.count;
   }
 
   async update(slug: string, dto: UpdateCatalogVideoDto) {
@@ -326,7 +289,7 @@ export class CatalogService {
       type: dto.type,
       seriesGroup: dto.seriesGroup,
       accessTier: dto.accessTier ?? VideoAccessTier.FREE,
-      playbackFormat: dto.playbackFormat ?? PlaybackFormat.YOUTUBE,
+      playbackFormat: dto.playbackFormat ?? PlaybackFormat.MP4,
       storageKey: dto.storageKey ?? null,
       durationSeconds: dto.durationSeconds ?? null,
       posterUrl: dto.posterUrl ?? null,
@@ -347,37 +310,12 @@ export class CatalogService {
       type: dto.type,
       seriesGroup: dto.seriesGroup,
       accessTier: dto.accessTier ?? VideoAccessTier.FREE,
-      playbackFormat: dto.playbackFormat ?? PlaybackFormat.YOUTUBE,
+      playbackFormat: dto.playbackFormat ?? PlaybackFormat.MP4,
       storageKey: dto.storageKey ?? null,
       durationSeconds: dto.durationSeconds ?? null,
       posterUrl: dto.posterUrl ?? null,
       published: dto.published ?? true,
     };
-  }
-
-  private buildYoutubeSyncUpdateData(dto: UpsertCatalogVideoDto): Prisma.CatalogVideoUpdateInput {
-    return {
-      title: dto.title,
-      thumbnail: dto.thumbnail,
-      date: dto.date,
-      description: dto.description,
-      rating: dto.rating,
-      sourceType: dto.sourceType,
-      videoId: dto.videoId,
-      type: dto.type,
-      seriesGroup: dto.seriesGroup,
-      durationSeconds: dto.durationSeconds ?? undefined,
-      published: true,
-    };
-  }
-
-  private shouldExposeVideoId(v: {
-    accessTier: VideoAccessTier;
-    playbackFormat: PlaybackFormat;
-  }): boolean {
-    return (
-      v.accessTier === VideoAccessTier.FREE && v.playbackFormat === PlaybackFormat.YOUTUBE
-    );
   }
 
   private toListDto(v: CatalogListRecord): CatalogVideoDto {
@@ -397,10 +335,6 @@ export class CatalogService {
       durationSeconds: v.durationSeconds,
       posterUrl: v.posterUrl,
     };
-
-    if (this.shouldExposeVideoId(v)) {
-      dto.videoId = v.videoId;
-    }
 
     return dto;
   }
@@ -439,10 +373,6 @@ export class CatalogService {
       posterUrl: v.posterUrl,
     };
 
-    if (this.shouldExposeVideoId(v)) {
-      dto.videoId = v.videoId;
-    }
-
     return dto;
   }
 
@@ -469,6 +399,147 @@ export class CatalogService {
       ...this.toDto(v),
       storageKey: v.storageKey,
       published: v.published,
+    };
+  }
+
+  async publishTitleBundle(dto: PublishTitleBundleDto, r2Storage: R2StorageService) {
+    const seriesGroup = dto.seriesGroup ?? dto.title;
+    const playbackFormat = dto.playbackFormat ?? PlaybackFormat.MP4;
+    const thumbnail = r2Storage.getPublicObjectUrl(dto.thumbnailKey);
+    const posterUrl = dto.posterKey
+      ? r2Storage.getPublicObjectUrl(dto.posterKey)
+      : thumbnail;
+
+    const filmDto: UpsertCatalogVideoDto = {
+      slug: dto.slug,
+      title: dto.title,
+      thumbnail,
+      date: dto.date,
+      genre: dto.genre,
+      description: dto.description,
+      rating: dto.rating,
+      sourceType: 'r2',
+      videoId: dto.slug,
+      type: 'film',
+      seriesGroup,
+      accessTier: dto.accessTier ?? VideoAccessTier.FREE,
+      playbackFormat,
+      storageKey: dto.filmStorageKey,
+      posterUrl,
+      published: dto.published ?? true,
+    };
+
+    const trailerSlug = trailerSlugForBaseSlug(dto.slug);
+    const trailerDto: UpsertCatalogVideoDto | null = dto.trailerStorageKey
+      ? {
+          slug: trailerSlug,
+          title: `${dto.title} (Trailer)`,
+          thumbnail,
+          date: dto.date,
+          genre: dto.genre,
+          description: dto.description,
+          rating: dto.rating,
+          sourceType: 'r2',
+          videoId: trailerSlug,
+          type: 'trailer',
+          seriesGroup,
+          accessTier: dto.accessTier ?? VideoAccessTier.FREE,
+          playbackFormat,
+          storageKey: dto.trailerStorageKey,
+          posterUrl,
+          published: dto.published ?? true,
+        }
+      : null;
+
+    const [film] = await this.prisma.$transaction(async (tx) => {
+      const filmRecord = await tx.catalogVideo.upsert({
+        where: { slug: dto.slug },
+        create: {
+          slug: filmDto.slug,
+          title: filmDto.title,
+          thumbnail: filmDto.thumbnail,
+          date: filmDto.date,
+          genre: filmDto.genre,
+          description: filmDto.description,
+          rating: filmDto.rating,
+          sourceType: filmDto.sourceType,
+          videoId: filmDto.videoId,
+          type: filmDto.type,
+          seriesGroup: filmDto.seriesGroup,
+          accessTier: filmDto.accessTier ?? VideoAccessTier.FREE,
+          playbackFormat: filmDto.playbackFormat ?? PlaybackFormat.MP4,
+          storageKey: filmDto.storageKey ?? null,
+          posterUrl: filmDto.posterUrl ?? null,
+          published: filmDto.published ?? true,
+        },
+        update: {
+          title: filmDto.title,
+          thumbnail: filmDto.thumbnail,
+          date: filmDto.date,
+          genre: filmDto.genre,
+          description: filmDto.description,
+          rating: filmDto.rating,
+          sourceType: filmDto.sourceType,
+          videoId: filmDto.videoId,
+          type: filmDto.type,
+          seriesGroup: filmDto.seriesGroup,
+          accessTier: filmDto.accessTier ?? VideoAccessTier.FREE,
+          playbackFormat: filmDto.playbackFormat ?? PlaybackFormat.MP4,
+          storageKey: filmDto.storageKey ?? null,
+          posterUrl: filmDto.posterUrl ?? null,
+          published: filmDto.published ?? true,
+        },
+      });
+
+      if (trailerDto) {
+        await tx.catalogVideo.upsert({
+          where: { slug: trailerDto.slug },
+          create: {
+            slug: trailerDto.slug,
+            title: trailerDto.title,
+            thumbnail: trailerDto.thumbnail,
+            date: trailerDto.date,
+            genre: trailerDto.genre,
+            description: trailerDto.description,
+            rating: trailerDto.rating,
+            sourceType: trailerDto.sourceType,
+            videoId: trailerDto.videoId,
+            type: trailerDto.type,
+            seriesGroup: trailerDto.seriesGroup,
+            accessTier: trailerDto.accessTier ?? VideoAccessTier.FREE,
+            playbackFormat: trailerDto.playbackFormat ?? PlaybackFormat.MP4,
+            storageKey: trailerDto.storageKey ?? null,
+            posterUrl: trailerDto.posterUrl ?? null,
+            published: trailerDto.published ?? true,
+          },
+          update: {
+            title: trailerDto.title,
+            thumbnail: trailerDto.thumbnail,
+            date: trailerDto.date,
+            genre: trailerDto.genre,
+            description: trailerDto.description,
+            rating: trailerDto.rating,
+            sourceType: trailerDto.sourceType,
+            videoId: trailerDto.videoId,
+            type: trailerDto.type,
+            seriesGroup: trailerDto.seriesGroup,
+            accessTier: trailerDto.accessTier ?? VideoAccessTier.FREE,
+            playbackFormat: trailerDto.playbackFormat ?? PlaybackFormat.MP4,
+            storageKey: trailerDto.storageKey ?? null,
+            posterUrl: trailerDto.posterUrl ?? null,
+            published: trailerDto.published ?? true,
+          },
+        });
+      }
+
+      return [filmRecord];
+    });
+
+    await this.cache.invalidateCatalog();
+
+    return {
+      film: this.toAdminDto(film),
+      trailerSlug: trailerDto ? trailerSlug : null,
     };
   }
 }

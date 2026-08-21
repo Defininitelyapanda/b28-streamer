@@ -60,12 +60,12 @@ const DEFAULT_SETTINGS = [
   { key: 'ads.premium_ads_enabled', value: false, type: 'boolean' },
   { key: 'moderation.comment_mode', value: 'OPEN', type: 'string' },
   { key: 'payouts.minimum_payout_amount', value: 1000, type: 'number' },
-  { key: 'payments.gateway_enabled', value: false, type: 'boolean' },
+  { key: 'payments.gateway_enabled', value: true, type: 'boolean' },
 ];
 
 const FEATURE_FLAGS = [
-  { key: 'PREMIUM', enabled: false, description: 'Premium subscriptions' },
-  { key: 'MPESA', enabled: false, description: 'M-Pesa payments' },
+  { key: 'PREMIUM', enabled: true, description: 'Premium subscriptions' },
+  { key: 'MPESA', enabled: true, description: 'M-Pesa payments' },
   { key: 'PAYPAL', enabled: false, description: 'PayPal payments' },
   { key: 'CARDS', enabled: false, description: 'Card payments' },
   { key: 'COMMENTS', enabled: false, description: 'Film comments' },
@@ -148,6 +148,21 @@ async function seedCatalogVideos() {
   }
 
   console.log(`Seeded ${raw.videos.length} catalog videos from frontend/data/catalog.json`);
+
+  const unpublishedFilms = await prisma.catalogVideo.updateMany({
+    where: { sourceType: 'youtube', type: 'film' },
+    data: { published: false },
+  });
+  const unpublishedYoutube = await prisma.catalogVideo.updateMany({
+    where: { sourceType: 'youtube', type: 'trailer' },
+    data: { published: false },
+  });
+  const total = unpublishedFilms.count + unpublishedYoutube.count;
+  if (total > 0) {
+    console.log(
+      `Unpublished ${unpublishedFilms.count} YouTube films and ${unpublishedYoutube.count} YouTube trailers (R2-only catalog).`,
+    );
+  }
 }
 
 async function main() {

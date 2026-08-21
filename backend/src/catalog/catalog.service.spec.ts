@@ -75,7 +75,7 @@ describe('CatalogService', () => {
     expect(result.videos).toHaveLength(1);
     expect(result.videos[0].id).toBe('abc123');
     expect(result.videos[0].desc).toBe('');
-    expect(result.videos[0].videoId).toBe('abc123');
+    expect(result.videos[0].videoId).toBeUndefined();
     expect(cache.set).toHaveBeenCalledWith(
       'catalog:list:1:100:all:all',
       expect.objectContaining({ total: 1 }),
@@ -103,7 +103,7 @@ describe('CatalogService', () => {
     );
   });
 
-  it('omits videoId from public list for premium titles', async () => {
+  it('never exposes videoId in public catalog list', async () => {
     (cache.get as jest.Mock).mockResolvedValue(null);
     (prisma.catalogVideo.findMany as jest.Mock).mockResolvedValue([
       {

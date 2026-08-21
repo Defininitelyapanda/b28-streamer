@@ -8,6 +8,22 @@ import PersonaSelect from "@/app/login/PersonaSelect";
 import AuthDialog from "@/app/login/AuthDialog";
 import { parsePersona, type Persona } from "@/app/login/login-utils";
 
+type AuthMode = "signin" | "signup";
+
+function parseAuthMode(value: string | null): AuthMode {
+  return value === "signup" ? "signup" : "signin";
+}
+
+function resolveInitialPersona(
+  personaParam: string | null,
+  modeParam: string | null,
+): Persona | null {
+  const parsed = parsePersona(personaParam);
+  if (parsed) return parsed;
+  if (parseAuthMode(modeParam) === "signup") return "streamer";
+  return null;
+}
+
 interface LoginExperienceProps {
   videos: CatalogVideo[];
 }
@@ -17,8 +33,10 @@ export default function LoginExperience({ videos }: LoginExperienceProps) {
   const searchParams = useSearchParams();
 
   const redirectParam = searchParams.get("redirect");
+  const modeParam = searchParams.get("mode");
+  const initialAuthMode = parseAuthMode(modeParam);
   const [persona, setPersona] = useState<Persona | null>(() =>
-    parsePersona(searchParams.get("persona")),
+    resolveInitialPersona(searchParams.get("persona"), modeParam),
   );
   const [mismatch, setMismatch] = useState("");
   const [parallax, setParallax] = useState({ x: 0, y: 0 });
@@ -98,6 +116,7 @@ export default function LoginExperience({ videos }: LoginExperienceProps) {
           <AuthDialog
             persona={persona}
             redirectParam={redirectParam}
+            initialMode={initialAuthMode}
             onBack={handleBack}
             onSuccess={handleSuccess}
             onMismatch={handleMismatch}

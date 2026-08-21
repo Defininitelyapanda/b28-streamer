@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Header, Headers, Param, Patch, Post, Put, Query, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Public, RequirePermissions } from '../common/decorators/auth.decorators';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -6,8 +6,11 @@ import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { SubscriptionGuard } from '../common/guards/subscription.guard';
 import { R2StorageService } from '../storage/r2-storage.service';
 import { CatalogService } from './catalog.service';
-import { PresignUploadDto, UpdateCatalogVideoDto, UpsertCatalogVideoDto } from './dto/catalog.dto';
-import { YoutubeSyncService } from './youtube-sync.service';
+import { PresignUploadDto, PublishTitleBundleDto, UpdateCatalogVideoDto, UpsertCatalogVideoDto } from './dto/catalog.dto';
+import {
+  assertAllowedUploadContentType,
+  buildCatalogAssetKey,
+} from './catalog-upload.util';
 
 @ApiTags('catalog')
 @ApiBearerAuth()
@@ -58,7 +61,6 @@ export class CatalogController {
 export class AdminCatalogController {
   constructor(
     private catalogService: CatalogService,
-    private youtubeSync: YoutubeSyncService,
     private r2Storage: R2StorageService,
   ) {}
 
@@ -77,38 +79,21 @@ export class AdminCatalogController {
   @RequirePermissions('films.approve')
   @Post('upload-url')
   presignUpload(@Body() dto: PresignUploadDto) {
-    const allowedTypes = new Set([
-      'video/mp4',
-      'application/octet-stream',
-      'application/x-mpegURL',
-      'application/vnd.apple.mpegurl',
-    ]);
-    if (!allowedTypes.has(dto.contentType)) {
-      throw new BadRequestException({
-        code: 'INVALID_CONTENT_TYPE',
-        message: 'Only MP4 or HLS content types are allowed for upload.',
-      });
-    }
-
-    const extension = dto.contentType.includes('mpeg') ? 'm3u8' : 'mp4';
-    const key = `films/${dto.slug}/${Date.now()}.${extension}`;
-    return this.r2Storage.getPresignedUploadUrl(key, dto.contentType);
+    assertAllowedUploadContentType(dto.assetKind, dto.contentType);
+    const key = buildCatalogAssetKey(dto.slug, dto.assetKind, dto.contentType, dto.fileName);
+    return this.r2Storage.getPresignedUploadUrl(key, dto.contentType).then((result) => ({
+      ...result,
+      publicUrl:
+        dto.assetKind === 'thumbnail' || dto.assetKind === 'poster'
+          ? this.r2Storage.getPublicObjectUrl(key)
+          : undefined,
+    }));
   }
 
   @RequirePermissions('films.approve')
-  @Post('sync-youtube')
-  syncYoutube() {
-    return this.youtubeSync.syncFromChannel();
-  }
-
-  @Public()
-  @Post('internal/sync-youtube')
-  syncYoutubeCron(@Headers('x-cron-secret') cronSecret?: string) {
-    const expected = process.env.CRON_SECRET;
-    if (!expected || cronSecret !== expected) {
-      throw new UnauthorizedException({ code: 'UNAUTHORIZED', message: 'Invalid cron secret.' });
-    }
-    return this.youtubeSync.syncFromChannel();
+  @Post('publish-bundle')
+  publishBundle(@Body() dto: PublishTitleBundleDto) {
+    return this.catalogService.publishTitleBundle(dto, this.r2Storage);
   }
 
   @RequirePermissions('films.approve')

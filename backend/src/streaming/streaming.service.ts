@@ -10,6 +10,7 @@ import { R2StorageService } from '../storage/r2-storage.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertProgressDto } from './dto/streaming.dto';
+import { isPublicTrailer } from './streaming-access.util';
 
 export interface PlaybackInfo {
   playbackFormat: PlaybackFormat;
@@ -31,12 +32,9 @@ export class StreamingService {
 
   async getPlaybackInfo(userId: string | null, slug: string): Promise<PlaybackInfo> {
     const video = await this.catalogService.findBySlug(slug);
+    const publicTrailer = isPublicTrailer(video);
 
-    const isFreeYoutube =
-      video.accessTier === VideoAccessTier.FREE &&
-      video.playbackFormat === PlaybackFormat.YOUTUBE;
-
-    if (!isFreeYoutube) {
+    if (!publicTrailer) {
       if (!userId) {
         throw new UnauthorizedException({
           code: 'UNAUTHORIZED',
@@ -53,6 +51,12 @@ export class StreamingService {
     }
 
     if (video.playbackFormat === PlaybackFormat.YOUTUBE) {
+      if (!video.videoId) {
+        throw new NotFoundException({
+          code: 'PLAYBACK_UNAVAILABLE',
+          message: 'Video file not available.',
+        });
+      }
       return {
         playbackFormat: PlaybackFormat.YOUTUBE,
         videoId: video.videoId,

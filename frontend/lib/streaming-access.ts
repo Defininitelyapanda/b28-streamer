@@ -1,15 +1,15 @@
 import type { SubscriptionInfo } from "@/lib/api-client";
 import type { Persona } from "@/app/login/login-utils";
-import type { CatalogVideo, PlaybackInfo } from "@/lib/types";
+import type { CatalogVideo } from "@/lib/types";
 
 export function hasFilmmakerRole(roles: string[]): boolean {
-  return roles.includes("FILMMAKER");
-}
-
-export function hasFilmmakerAccess(roles: string[]): boolean {
   return roles.some((role) =>
     ["FILMMAKER", "ADMIN", "SUPER_ADMIN", "CONTENT_ADMIN"].includes(role),
   );
+}
+
+export function hasFilmmakerAccess(roles: string[]): boolean {
+  return hasFilmmakerRole(roles);
 }
 
 export function canStream(
@@ -21,21 +21,12 @@ export function canStream(
   return subscription?.isPremium === true;
 }
 
-export function isFreeYoutubeVideo(video: CatalogVideo): boolean {
-  return (
-    (video.accessTier ?? "FREE") === "FREE" &&
-    (video.playbackFormat ?? "YOUTUBE") === "YOUTUBE" &&
-    Boolean(video.videoId)
-  );
+export function isPublicTrailer(video: CatalogVideo): boolean {
+  return video.type === "trailer";
 }
 
-export function buildCatalogPlayback(video: CatalogVideo): PlaybackInfo {
-  return {
-    playbackFormat: "YOUTUBE",
-    videoId: video.videoId,
-    accessTier: video.accessTier ?? "FREE",
-    adsEnabled: false,
-  };
+export function isFullFilm(video: CatalogVideo): boolean {
+  return video.type !== "trailer";
 }
 
 export function canWatchVideo(
@@ -43,8 +34,41 @@ export function canWatchVideo(
   subscription: SubscriptionInfo | null | undefined,
   roles: string[],
 ): boolean {
-  if (isFreeYoutubeVideo(video)) return true;
+  if (isPublicTrailer(video)) return true;
   return canStream(subscription, roles);
+}
+
+export function needsSignInForVideo(
+  video: CatalogVideo,
+  isAuthenticated: boolean,
+): boolean {
+  return isFullFilm(video) && !isAuthenticated;
+}
+
+export function needsSubscriptionForVideo(
+  video: CatalogVideo,
+  subscription: SubscriptionInfo | null | undefined,
+  roles: string[],
+  isAuthenticated: boolean,
+): boolean {
+  return isFullFilm(video) && isAuthenticated && !canStream(subscription, roles);
+}
+
+export function buildOffersUrl(redirectPath: string): string {
+  return `/offers?redirect=${encodeURIComponent(redirectPath)}`;
+}
+
+export function buildLoginUrl(options: {
+  redirect?: string | null;
+  mode?: "signin" | "signup";
+  persona?: Persona;
+}): string {
+  const params = new URLSearchParams();
+  if (options.redirect) params.set("redirect", options.redirect);
+  if (options.mode === "signup") params.set("mode", "signup");
+  if (options.persona) params.set("persona", options.persona);
+  const query = params.toString();
+  return query ? `/login?${query}` : "/login";
 }
 
 export function resolveWatchDestination(
@@ -53,7 +77,21 @@ export function resolveWatchDestination(
   watchPath: string,
 ): string | null {
   if (canStream(subscription, roles)) return null;
-  return `/offers?redirect=${encodeURIComponent(watchPath)}`;
+  return buildOffersUrl(watchPath);
+}
+
+export function resolveAuthenticatedLoginRedirect(
+  subscription: SubscriptionInfo | null | undefined,
+  roles: string[],
+  redirectTarget: string,
+): string {
+  if (redirectTarget.startsWith("/filmmaker") && hasFilmmakerAccess(roles)) {
+    return redirectTarget;
+  }
+  if (canStream(subscription, roles)) {
+    return redirectTarget;
+  }
+  return buildOffersUrl(redirectTarget);
 }
 
 export function resolvePostAuthRedirect(
@@ -67,6 +105,7 @@ export function resolvePostAuthRedirect(
   },
 ): { url: string; warning?: string; stayOnLogin?: boolean } {
   const { redirectParam, authMode, hasFilmmakerApplication } = options;
+  const redirectTarget = redirectParam ?? "/browse";
 
   if (persona === "filmmaker") {
     if (authMode === "signup" || hasFilmmakerAccess(roles) || hasFilmmakerApplication) {
@@ -81,8 +120,12 @@ export function resolvePostAuthRedirect(
   }
 
   if (authMode === "signup") {
-    return { url: "/offers?redirect=/browse" };
+    return { url: buildOffersUrl(redirectTarget) };
   }
 
-  return { url: redirectParam ?? "/browse" };
+  if (canStream(subscription, roles)) {
+    return { url: redirectTarget };
+  }
+
+  return { url: buildOffersUrl(redirectTarget) };
 }

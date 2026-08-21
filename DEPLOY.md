@@ -98,7 +98,18 @@ Set for **Production**, **Preview**, and **Development**:
 | `R2_ACCESS_KEY_ID` | R2 API token access key |
 | `R2_SECRET_ACCESS_KEY` | R2 API token secret |
 | `R2_BUCKET_NAME` | Bucket for film uploads |
-| `R2_PUBLIC_DOMAIN` | Optional CDN domain for poster images |
+| `R2_PUBLIC_DOMAIN` | **Required for admin image uploads** — R2 custom domain or `pub-xxx.r2.dev` public bucket URL. Used to build stable HTTPS URLs for thumbnails and posters. |
+| `R2_CORS_ORIGINS` | Comma-separated extra origins for `npm run r2:cors` (e.g. your Vercel frontend and admin dashboard URLs) |
+
+After setting R2 credentials, configure bucket CORS from the repo root so browser uploads and `<video>` playback work:
+
+```powershell
+# backend/.env must contain R2_* vars; optionally:
+# R2_CORS_ORIGINS=https://your-app.vercel.app,https://your-admin.vercel.app
+npm run r2:cors
+```
+
+CORS must allow **GET** (streamer site loads video and poster URLs) and **PUT** (admin dashboard uploads). Default origins include `localhost:3000`, `localhost:3001`, and the production dashboard URL in [scripts/configure-r2-cors.js](scripts/configure-r2-cors.js).
 
 ### Admin dashboard (separate deploy)
 
@@ -107,6 +118,7 @@ Set for **Production**, **Preview**, and **Development**:
 | `AUTH_SECRET` | Use a **different** value from frontend if both share a parent domain |
 | `AUTH_URL` | Admin dashboard URL |
 | `NEXT_PUBLIC_API_URL` | Backend API base (`/api/v1` or full URL) |
+| `NEXT_PUBLIC_STREAMER_ORIGIN` | Public streamer site URL (for post-upload watch links), e.g. `https://your-app.vercel.app` |
 
 `B28_API_URL` is injected automatically via the **service binding** in [vercel.json](vercel.json) so server-side catalog fetches reach the backend internally.
 
@@ -207,7 +219,7 @@ Set Cloudflare R2 (platform bucket):
 $env:R2_ACCOUNT_ID = "..."
 $env:R2_ACCESS_KEY_ID = "..."
 $env:R2_SECRET_ACCESS_KEY = "..."
-$env:R2_BUCKET_NAME = "b28-films"
+$env:R2_BUCKET_NAME = "b28streamer"
 powershell -ExecutionPolicy Bypass -File scripts/set-vercel-r2-env.ps1
 npx vercel --prod
 ```

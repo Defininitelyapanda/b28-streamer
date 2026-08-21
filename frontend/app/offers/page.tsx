@@ -12,6 +12,7 @@ import {
   PaymentMethod,
 } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
+import { buildLoginUrl } from "@/lib/streaming-access";
 
 function OffersContent() {
   const router = useRouter();
@@ -40,13 +41,19 @@ function OffersContent() {
   }, [user]);
 
   const continueUrl = redirectParam ?? "/browse";
-  const loginRedirect = `/login?redirect=${encodeURIComponent(
-    redirectParam ? `/offers?redirect=${encodeURIComponent(redirectParam)}` : "/offers",
-  )}`;
+  const signupRedirect = buildLoginUrl({
+    redirect: redirectParam,
+    mode: "signup",
+    persona: "streamer",
+  });
+  const signinRedirect = buildLoginUrl({
+    redirect: redirectParam,
+    persona: "streamer",
+  });
 
   async function linkPayment() {
     if (!user) {
-      router.push(loginRedirect);
+      router.push(signupRedirect);
       return;
     }
     if (!payLabel.trim()) return;
@@ -72,7 +79,7 @@ function OffersContent() {
 
   async function handleSubscribe() {
     if (!user) {
-      router.push(loginRedirect);
+      router.push(signupRedirect);
       return;
     }
     setBusy(true);
@@ -92,8 +99,10 @@ function OffersContent() {
 
   const currency = offers?.currency ?? "KES";
   const greeting = user
-    ? `Hi ${user.displayName ?? user.email.split("@")[0]} — subscribe to watch films and series on B28.`
-    : "Browse plans below. Sign in when you're ready to subscribe.";
+    ? redirectParam
+      ? `Almost there — pick a plan to start watching.`
+      : `Hi ${user.displayName ?? user.email.split("@")[0]} — subscribe to watch films and series on B28.`
+    : "Create an account or sign in, then choose a plan to start streaming.";
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10">
@@ -102,8 +111,12 @@ function OffersContent() {
 
       {!user && !loading && (
         <div className="glass-panel mb-8 rounded-xl border border-white/10 p-4 text-sm text-muted">
-          <Link href={loginRedirect} className="text-accent underline">
-            Sign in
+          <Link href={signupRedirect} className="text-accent underline">
+            Create account
+          </Link>{" "}
+          or{" "}
+          <Link href={signinRedirect} className="text-accent underline">
+            sign in
           </Link>{" "}
           to link a payment method and subscribe.
         </div>
@@ -222,7 +235,7 @@ function OffersContent() {
         disabled={busy || subscription?.isPremium === true}
         className="btn btn-primary w-full md:w-auto"
       >
-        {user ? "Subscribe & start watching" : "Sign in to subscribe"}
+        {user ? "Subscribe & start watching" : "Create account to subscribe"}
       </button>
     </div>
   );

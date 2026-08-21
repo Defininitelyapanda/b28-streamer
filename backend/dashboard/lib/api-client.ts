@@ -213,17 +213,48 @@ export async function upsertCatalogVideo(video: {
   });
 }
 
-export async function requestUploadUrl(slug: string, contentType: string) {
-  return apiRequest<{ url: string; key: string; expiresIn: number }>("/admin/catalog/upload-url", {
-    method: "POST",
-    body: JSON.stringify({ slug, contentType }),
-  });
+export type CatalogAssetKind = "thumbnail" | "poster" | "film" | "trailer";
+
+export async function requestUploadUrl(
+  slug: string,
+  contentType: string,
+  assetKind: CatalogAssetKind,
+  fileName?: string,
+) {
+  return apiRequest<{ url: string; key: string; expiresIn: number; publicUrl?: string }>(
+    "/admin/catalog/upload-url",
+    {
+      method: "POST",
+      body: JSON.stringify({ slug, contentType, assetKind, fileName }),
+    },
+  );
 }
 
-export async function syncYoutubeCatalog() {
-  return apiRequest<{ count: number; syncedAt: string }>("/admin/catalog/sync-youtube", {
-    method: "POST",
-  });
+export interface PublishTitleBundlePayload {
+  slug: string;
+  title: string;
+  date: string;
+  genre: string;
+  description: string;
+  rating: string;
+  thumbnailKey: string;
+  posterKey?: string;
+  filmStorageKey: string;
+  trailerStorageKey?: string;
+  accessTier?: "FREE" | "PREMIUM";
+  playbackFormat?: "MP4" | "HLS";
+  seriesGroup?: string;
+  published?: boolean;
+}
+
+export async function publishTitleBundle(payload: PublishTitleBundlePayload) {
+  return apiRequest<{ film: CatalogVideo; trailerSlug: string | null }>(
+    "/admin/catalog/publish-bundle",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
 export interface FilmmakerApplication {

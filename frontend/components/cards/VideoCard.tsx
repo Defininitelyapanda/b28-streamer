@@ -60,6 +60,11 @@ export default function VideoCard({ video, showProgress, showRemove, onRemove }:
               </svg>
             </div>
           </div>
+          {video.type === "trailer" && (
+            <span className="absolute right-2 top-2 z-10 rounded bg-white/15 px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide text-white">
+              Trailer
+            </span>
+          )}
           {progressPct > 0 && (
             <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
               <div className="h-full bg-accent" style={{ width: `${progressPct}%` }} />

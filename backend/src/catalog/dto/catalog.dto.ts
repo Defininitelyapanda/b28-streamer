@@ -1,5 +1,8 @@
 import { PlaybackFormat, VideoAccessTier } from '@prisma/client';
-import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
+
+export const CATALOG_ASSET_KINDS = ['thumbnail', 'poster', 'film', 'trailer'] as const;
+export type CatalogAssetKind = (typeof CATALOG_ASSET_KINDS)[number];
 
 export class UpsertCatalogVideoDto {
   @IsString()
@@ -134,4 +137,61 @@ export class PresignUploadDto {
 
   @IsString()
   contentType!: string;
+
+  @IsIn(CATALOG_ASSET_KINDS)
+  assetKind!: CatalogAssetKind;
+
+  @IsOptional()
+  @IsString()
+  fileName?: string;
+}
+
+export class PublishTitleBundleDto {
+  @IsString()
+  slug!: string;
+
+  @IsString()
+  title!: string;
+
+  @IsString()
+  date!: string;
+
+  @IsString()
+  genre!: string;
+
+  @IsString()
+  description!: string;
+
+  @IsString()
+  rating!: string;
+
+  @IsString()
+  thumbnailKey!: string;
+
+  @IsOptional()
+  @IsString()
+  posterKey?: string;
+
+  @IsString()
+  filmStorageKey!: string;
+
+  @IsOptional()
+  @IsString()
+  trailerStorageKey?: string;
+
+  @IsOptional()
+  @IsEnum(VideoAccessTier)
+  accessTier?: VideoAccessTier;
+
+  @IsOptional()
+  @IsEnum(PlaybackFormat)
+  playbackFormat?: PlaybackFormat;
+
+  @IsOptional()
+  @IsString()
+  seriesGroup?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  published?: boolean;
 }

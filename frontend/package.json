@@ -7,7 +7,6 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "sync": "tsx scripts/sync-catalog.ts",
     "deploy": "vercel --prod"
   },
   "dependencies": {

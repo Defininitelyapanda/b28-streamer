@@ -11,7 +11,7 @@ Set-Location $root
 . (Join-Path $root "scripts\vercel-env-helper.ps1")
 
 $required = @("YOUTUBE_API_KEY", "YOUTUBE_CHANNEL_ID", "CRON_SECRET")
-$missing = @($required | Where-Object { -not $env:$_ })
+$missing = @($required | Where-Object { -not (Get-Item -Path "env:$_" -ErrorAction SilentlyContinue).Value })
 
 if ($missing.Count -gt 0) {
     Write-Host "Missing required env vars in this shell:" -ForegroundColor Red

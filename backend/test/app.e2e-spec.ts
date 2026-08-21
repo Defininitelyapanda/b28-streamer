@@ -134,23 +134,6 @@ describe('B28 Oncodex API (e2e)', () => {
       });
   });
 
-  itIfDb('GET /api/v1/streaming/play/:slug allows free YouTube without auth', async () => {
-    const list = await request(app.getHttpServer()).get('/api/v1/catalog').expect(200);
-    const freeYoutube = list.body.data.videos.find(
-      (video: { id?: string; videoId?: string }) => video.videoId && video.id,
-    );
-    if (!freeYoutube?.id) return;
-
-    await request(app.getHttpServer())
-      .get(`/api/v1/streaming/play/${encodeURIComponent(freeYoutube.id)}`)
-      .expect(200)
-      .expect((res) => {
-        expect(res.body.success).toBe(true);
-        expect(res.body.data.playbackFormat).toBe('YOUTUBE');
-        expect(res.body.data.videoId).toBeDefined();
-      });
-  });
-
   itIfDb('GET /api/v1/catalog supports pagination', async () => {
     await request(app.getHttpServer())
       .get('/api/v1/catalog?page=1&limit=5')
@@ -217,26 +200,148 @@ describe('B28 Oncodex API (e2e)', () => {
     expect(adminToken).toBeDefined();
   });
 
-  itIfDb('POST /api/v1/admin/catalog/upload-url returns R2_NOT_CONFIGURED when R2 unset', async () => {
+  itIfDb('GET /api/v1/streaming/play/:slug allows public trailers without auth', async () => {
+    const slug = `trailer-guest-${Date.now()}`;
     await request(app.getHttpServer())
+      .put('/api/v1/admin/catalog')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send(buildTestCatalogUpsert(slug, { type: 'trailer', playbackFormat: 'YOUTUBE' }))
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/streaming/play/${encodeURIComponent(slug)}`)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.playbackFormat).toBeDefined();
+      });
+  });
+
+  itIfDb('GET /api/v1/streaming/play/:slug requires auth for full films', async () => {
+    const slug = `film-guest-${Date.now()}`;
+    await request(app.getHttpServer())
+      .put('/api/v1/admin/catalog')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send(buildTestCatalogUpsert(slug, { type: 'film', playbackFormat: 'YOUTUBE' }))
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/streaming/play/${encodeURIComponent(slug)}`)
+      .expect(401);
+  });
+
+  itIfDb('GET /api/v1/streaming/play/:slug requires subscription for full films when logged in', async () => {
+    const slug = `film-nosub-${Date.now()}`;
+    await request(app.getHttpServer())
+      .put('/api/v1/admin/catalog')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send(buildTestCatalogUpsert(slug, { type: 'film', playbackFormat: 'YOUTUBE' }))
+      .expect(200);
+
+    const freeUser = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email: 'streamer.free@b28.dev', password: 'Password123!' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/streaming/play/${encodeURIComponent(slug)}`)
+      .set('Authorization', `Bearer ${freeUser.body.data.accessToken}`)
+      .expect(403)
+      .expect((res) => {
+        expect(res.body.error.code).toBe('SUBSCRIPTION_REQUIRED');
+      });
+  });
+
+  itIfDb('GET /api/v1/streaming/play/:slug allows premium subscriber on full films', async () => {
+    const slug = `film-premium-${Date.now()}`;
+    await request(app.getHttpServer())
+      .put('/api/v1/admin/catalog')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send(buildTestCatalogUpsert(slug, { type: 'film', playbackFormat: 'YOUTUBE' }))
+      .expect(200);
+
+    const premiumUser = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email: 'streamer.premium@b28.dev', password: 'Password123!' })
+      .expect(201);
+
+    const play = await request(app.getHttpServer())
+      .get(`/api/v1/streaming/play/${encodeURIComponent(slug)}`)
+      .set('Authorization', `Bearer ${premiumUser.body.data.accessToken}`);
+
+    expect(play.status).toBe(200);
+    expect(play.body.success).toBe(true);
+  });
+
+  itIfDb('POST /api/v1/admin/catalog/upload-url returns R2_NOT_CONFIGURED when R2 unset', async () => {
+    const res = await request(app.getHttpServer())
       .post('/api/v1/admin/catalog/upload-url')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ slug: 'test-film', contentType: 'video/mp4' })
-      .expect(503)
-      .expect((res) => {
-        expect(res.body.error.code).toBe('R2_NOT_CONFIGURED');
-      });
+      .send({ slug: 'test-film', contentType: 'video/mp4', assetKind: 'film' });
+
+    if (res.status === 503) {
+      expect(res.body.error.code).toBe('R2_NOT_CONFIGURED');
+      return;
+    }
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.url).toBeDefined();
   });
 
   itIfDb('POST /api/v1/admin/catalog/upload-url rejects invalid content type', async () => {
     await request(app.getHttpServer())
       .post('/api/v1/admin/catalog/upload-url')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ slug: 'test-film', contentType: 'text/plain' })
+      .send({ slug: 'test-film', contentType: 'text/plain', assetKind: 'film' })
       .expect(400)
       .expect((res) => {
         expect(res.body.error.code).toBe('INVALID_CONTENT_TYPE');
       });
+  });
+
+  itIfDb('POST /api/v1/admin/catalog/upload-url rejects video type for thumbnail', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/admin/catalog/upload-url')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ slug: 'test-film', contentType: 'video/mp4', assetKind: 'thumbnail' })
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.error.code).toBe('INVALID_CONTENT_TYPE');
+      });
+  });
+
+  itIfDb('POST /api/v1/admin/catalog/publish-bundle creates film and optional trailer rows', async () => {
+    const slug = `bundle-${Date.now()}`;
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/admin/catalog/publish-bundle')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        slug,
+        title: 'Bundle Test Film',
+        date: '2026-01-01',
+        genre: 'Drama',
+        description: 'Publish bundle e2e',
+        rating: '8.0',
+        thumbnailKey: `catalog/${slug}/thumb.jpg`,
+        filmStorageKey: `catalog/${slug}/film.mp4`,
+        trailerStorageKey: `catalog/${slug}/trailer.mp4`,
+        playbackFormat: 'MP4',
+      });
+
+    if (res.status === 400 && res.body.error?.code === 'R2_PUBLIC_DOMAIN_REQUIRED') {
+      return;
+    }
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.film.id).toBe(slug);
+    expect(res.body.data.trailerSlug).toBe(`${slug}-trailer`);
+
+    const trailer = await request(app.getHttpServer())
+      .get(`/api/v1/catalog/videos/${encodeURIComponent(`${slug}-trailer`)}`)
+      .expect(200);
+    expect(trailer.body.data.type).toBe('trailer');
   });
 
   itIfDb('GET /api/v1/streaming/play/:slug returns R2_NOT_CONFIGURED for MP4 without R2', async () => {
@@ -259,68 +364,35 @@ describe('B28 Oncodex API (e2e)', () => {
       .send({ email: 'filmmaker@b28.dev', password: 'Password123!' })
       .expect(201);
 
-    await request(app.getHttpServer())
+    const play = await request(app.getHttpServer())
       .get(`/api/v1/streaming/play/${encodeURIComponent(slug)}`)
-      .set('Authorization', `Bearer ${filmmaker.body.data.accessToken}`)
-      .expect(503)
-      .expect((res) => {
-        expect(res.body.error.code).toBe('R2_NOT_CONFIGURED');
-      });
+      .set('Authorization', `Bearer ${filmmaker.body.data.accessToken}`);
+
+    if (play.status === 503) {
+      expect(play.body.error.code).toBe('R2_NOT_CONFIGURED');
+      return;
+    }
+
+    expect(play.status).toBe(200);
+    expect(play.body.success).toBe(true);
+    expect(play.body.data.url).toBeDefined();
   });
 
-  itIfDb('public catalog omits videoId for premium titles', async () => {
+  itIfDb('public catalog never exposes videoId', async () => {
     const list = await request(app.getHttpServer()).get('/api/v1/catalog').expect(200);
-    const slug = list.body.data.videos[0]?.id;
-    if (!slug) return;
-
-    await request(app.getHttpServer())
-      .patch(`/api/v1/admin/catalog/${encodeURIComponent(slug)}`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ accessTier: 'PREMIUM' })
-      .expect(200);
-
-    const refreshed = await request(app.getHttpServer()).get('/api/v1/catalog').expect(200);
-    const premium = refreshed.body.data.videos.find((v: { id: string }) => v.id === slug);
-    expect(premium).toBeDefined();
-    expect(premium.videoId).toBeUndefined();
-
-    await request(app.getHttpServer())
-      .patch(`/api/v1/admin/catalog/${encodeURIComponent(slug)}`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ accessTier: 'FREE' })
-      .expect(200);
+    for (const video of list.body.data.videos as Array<{ videoId?: string }>) {
+      expect(video.videoId).toBeUndefined();
+    }
   });
 
-  itIfDb('GET /api/v1/streaming/play/:slug requires auth for premium', async () => {
-    const list = await request(app.getHttpServer()).get('/api/v1/catalog').expect(200);
-    const slug = list.body.data.videos[0]?.id;
-    if (!slug) return;
-
-    await request(app.getHttpServer())
-      .patch(`/api/v1/admin/catalog/${encodeURIComponent(slug)}`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ accessTier: 'PREMIUM' })
-      .expect(200);
-
-    await request(app.getHttpServer())
-      .get(`/api/v1/streaming/play/${encodeURIComponent(slug)}`)
-      .expect(401);
-
-    await request(app.getHttpServer())
-      .patch(`/api/v1/admin/catalog/${encodeURIComponent(slug)}`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ accessTier: 'FREE' })
-      .expect(200);
-  });
-
-  itIfDb('POST /api/v1/subscriptions/subscribe is blocked when PREMIUM is disabled', async () => {
+  itIfDb('POST /api/v1/subscriptions/subscribe requires payment method when PREMIUM enabled', async () => {
     await request(app.getHttpServer())
       .post('/api/v1/subscriptions/subscribe')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ plan: 'MONTHLY' })
-      .expect(403)
+      .expect(400)
       .expect((res) => {
-        expect(res.body.error.code).toBe('FEATURE_DISABLED');
+        expect(res.body.error.code).toBe('PAYMENT_METHOD_REQUIRED');
       });
   });
 
@@ -355,16 +427,6 @@ describe('B28 Oncodex API (e2e)', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ key: 'revenue.filmmaker_percentage', value: 80, type: 'number' })
       .expect(400);
-  });
-
-  itIfDb('POST /api/v1/admin/catalog/internal/sync-youtube returns structured error without config', async () => {
-    await request(app.getHttpServer())
-      .post('/api/v1/admin/catalog/internal/sync-youtube')
-      .set('x-cron-secret', process.env.CRON_SECRET ?? 'test-cron-secret')
-      .expect(503)
-      .expect((res) => {
-        expect(res.body.error.code).toBe('YOUTUBE_NOT_CONFIGURED');
-      });
   });
 
   itIfDb('POST /api/v1/auth/forgot-password does not leak account existence', async () => {

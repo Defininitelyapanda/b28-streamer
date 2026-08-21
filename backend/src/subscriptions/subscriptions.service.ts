@@ -91,7 +91,13 @@ export class SubscriptionsService {
       where: { userId },
       include: { role: true },
     });
-    const allowed = roles.some((r) => r.role.name === RoleName.FILMMAKER);
+    const bypassRoles = new Set<RoleName>([
+      RoleName.FILMMAKER,
+      RoleName.ADMIN,
+      RoleName.SUPER_ADMIN,
+      RoleName.CONTENT_ADMIN,
+    ]);
+    const allowed = roles.some((r) => bypassRoles.has(r.role.name));
     await this.cache.set(cacheKey, allowed, 30);
     return allowed;
   }

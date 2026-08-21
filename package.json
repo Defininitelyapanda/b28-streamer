@@ -25,7 +25,11 @@
     "vercel:deploy": "powershell -ExecutionPolicy Bypass -File scripts/vercel-deploy.ps1",
     "vercel:youtube": "powershell -ExecutionPolicy Bypass -File scripts/set-vercel-youtube-env.ps1",
     "vercel:r2": "powershell -ExecutionPolicy Bypass -File scripts/set-vercel-r2-env.ps1",
-    "vercel:dashboard": "powershell -ExecutionPolicy Bypass -File scripts/vercel-dashboard-deploy.ps1",
+    "vercel:dashboard": "powershell -ExecutionPolicy Bypass -File scripts/setup-dashboard-vercel.ps1",
+    "verify:r2": "node scripts/verify-r2-connection.js",
+    "verify:r2:e2e": "powershell -ExecutionPolicy Bypass -File scripts/verify-r2-e2e-production.ps1",
+    "r2:token": "powershell -ExecutionPolicy Bypass -File scripts/open-cloudflare-r2-tokens.ps1",
+    "r2:cors": "node scripts/configure-r2-cors.js",
     "test:api": "npm test --prefix backend && npm run test:e2e --prefix backend",
     "status": "git status"
   },
