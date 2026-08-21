@@ -28,6 +28,19 @@ interface YouTubeVideoItem {
       medium?: { url?: string };
     };
   };
+  contentDetails?: {
+    duration?: string;
+  };
+}
+
+function parseIso8601Duration(duration: string | undefined): number | null {
+  if (!duration) return null;
+  const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!match) return null;
+  const hours = Number(match[1] ?? 0);
+  const minutes = Number(match[2] ?? 0);
+  const seconds = Number(match[3] ?? 0);
+  return hours * 3600 + minutes * 60 + seconds;
 }
 
 function stableRating(videoId: string): string {
@@ -61,7 +74,7 @@ export class YoutubeSyncService {
     private catalogService: CatalogService,
   ) {}
 
-  async syncFromChannel(): Promise<{ count: number; syncedAt: string }> {
+  async syncFromChannel(): Promise<{ count: number; unpublished: number; syncedAt: string }> {
     const apiKey = this.config.get<string>('YOUTUBE_API_KEY');
     const channelId = this.config.get<string>('YOUTUBE_CHANNEL_ID');
     if (!apiKey || !channelId) {
@@ -95,12 +108,14 @@ export class YoutubeSyncService {
       seriesGroup: v.seriesGroup,
       accessTier: VideoAccessTier.FREE,
       playbackFormat: PlaybackFormat.YOUTUBE,
+      durationSeconds: v.durationSeconds ?? undefined,
       published: true,
     }));
 
-    const result = await this.catalogService.bulkUpsert(dtos);
-    this.logger.log(`Synced ${result.count} videos from YouTube`);
-    return result;
+    const result = await this.catalogService.bulkUpsertFromYoutube(dtos);
+    const unpublished = await this.catalogService.unpublishStaleYoutubeVideos(videoIds);
+    this.logger.log(`Synced ${result.count} videos from YouTube; unpublished ${unpublished} stale`);
+    return { count: result.count, unpublished, syncedAt: result.syncedAt };
   }
 
   private async youtubeFetch<T>(apiKey: string, endpoint: string, params: Record<string, string>): Promise<T> {
@@ -177,6 +192,7 @@ export class YoutubeSyncService {
       genre: string;
       type: string;
       seriesGroup: string;
+      durationSeconds: number | null;
     }>
   > {
     const videos: Array<{
@@ -189,12 +205,13 @@ export class YoutubeSyncService {
       genre: string;
       type: string;
       seriesGroup: string;
+      durationSeconds: number | null;
     }> = [];
 
     for (let i = 0; i < videoIds.length; i += 50) {
       const batch = videoIds.slice(i, i + 50);
       const data = await this.youtubeFetch<{ items?: YouTubeVideoItem[] }>(apiKey, 'videos', {
-        part: 'snippet',
+        part: 'snippet,contentDetails',
         id: batch.join(','),
       });
 
@@ -221,6 +238,7 @@ export class YoutubeSyncService {
           date,
           thumbnail,
           rating: stableRating(videoId),
+          durationSeconds: parseIso8601Duration(item.contentDetails?.duration),
           ...classification,
         });
       }

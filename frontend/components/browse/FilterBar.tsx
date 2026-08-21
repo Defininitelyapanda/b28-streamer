@@ -16,6 +16,7 @@ export default function FilterBar() {
     const next = new URLSearchParams(params.toString());
     if (value === "All") next.delete(key);
     else next.set(key, value);
+    if (key === "genre") next.delete("page");
     const qs = next.toString();
     router.push(qs ? `${pathname}?${qs}` : pathname);
   }

@@ -1,22 +1,13 @@
 # Configure required backend env vars on the linked Vercel project.
 # Usage:
-#   $env:DATABASE_URL = "postgresql://..."   # Neon/Vercel Postgres connection string
-#   powershell -ExecutionPolicy Bypass -File scripts/set-vercel-backend-env.ps1
+#   $env:DATABASE_URL = "postgresql://..."   # Neon pooled URL
+#   $env:DATABASE_URL_UNPOOLED = "postgresql://..."   # Neon direct URL (recommended)
+#   npm run vercel:env
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $root
-
-function Set-VercelEnv($name, $value, [string[]]$targets = @("production", "preview")) {
-    foreach ($target in $targets) {
-        $value | npx vercel env add $name $target --yes 2>&1 | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "  $name for $target already exists or failed (continuing)" -ForegroundColor Yellow
-        } else {
-            Write-Host "  Set $name for $target" -ForegroundColor Green
-        }
-    }
-}
+. (Join-Path $root "scripts\vercel-env-helper.ps1")
 
 Write-Host "Setting Vercel backend environment variables..." -ForegroundColor Cyan
 
@@ -33,8 +24,12 @@ Set-VercelEnv "JWT_REFRESH_SECRET" $jwtRefresh
 Set-VercelEnv "AUTH_AUTO_VERIFY" "true"
 Set-VercelEnv "NODE_ENV" "production"
 
-if ($env:DATABASE_URL) {
+if ($env:DATABASE_URL -and $env:DATABASE_URL -notmatch '^\s*postgresql://\.\.\.') {
     Set-VercelEnv "DATABASE_URL" $env:DATABASE_URL
+} elseif ($env:DATABASE_URL) {
+    Write-Host ""
+    Write-Host "DATABASE_URL looks like a placeholder. Set your real Neon URL first." -ForegroundColor Yellow
+    Write-Host '  $env:DATABASE_URL="postgresql://user:pass@host/db?sslmode=require"' -ForegroundColor White
 } else {
     Write-Host ""
     Write-Host "DATABASE_URL not set in this shell." -ForegroundColor Yellow
@@ -42,5 +37,12 @@ if ($env:DATABASE_URL) {
     Write-Host '  $env:DATABASE_URL="postgresql://..."; npm run vercel:env' -ForegroundColor White
 }
 
+if ($env:DATABASE_URL_UNPOOLED -and $env:DATABASE_URL_UNPOOLED -notmatch '^\s*postgresql://\.\.\.') {
+    Set-VercelEnv "DATABASE_URL_UNPOOLED" $env:DATABASE_URL_UNPOOLED
+} else {
+    Write-Host ""
+    Write-Host "Tip: set DATABASE_URL_UNPOOLED (Neon direct URL) for reliable Prisma migrations." -ForegroundColor Yellow
+}
+
 Write-Host ""
-Write-Host "Done. Redeploy with: npx vercel --prod" -ForegroundColor Cyan
+Write-Host 'Done. Redeploy with: npm run vercel:deploy' -ForegroundColor Cyan

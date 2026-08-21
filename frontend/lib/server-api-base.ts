@@ -12,14 +12,24 @@ export function getServerApiBase(): string {
   const publicUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
   if (publicUrl) {
     if (publicUrl.startsWith("http")) return publicUrl;
-    const origin =
-      process.env.AUTH_URL?.replace(/\/$/, "") ??
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ??
-      "http://localhost:3000";
+    const origin = resolveAppOrigin();
     return `${origin}${publicUrl.startsWith("/") ? publicUrl : `/${publicUrl}`}`;
   }
 
+  if (process.env.VERCEL === "1" || process.env.NODE_ENV === "production") {
+    const origin = resolveAppOrigin();
+    return `${origin}/api/v1`;
+  }
+
   return "http://localhost:4000/api/v1";
+}
+
+function resolveAppOrigin(): string {
+  return (
+    process.env.AUTH_URL?.replace(/\/$/, "") ??
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ??
+    "http://localhost:3000"
+  );
 }
 
 export function getAuthSecret(): string {

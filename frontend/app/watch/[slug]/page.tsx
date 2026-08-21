@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getWatchPageData } from "@/lib/catalog";
 import {
-  buildCatalogPlayback,
   canWatchVideo,
   isFreeYoutubeVideo,
   resolveWatchDestination,
@@ -43,11 +42,14 @@ export default async function WatchPage({ params }: WatchPageProps) {
   const upsellDestination = canWatch ? null : resolveWatchDestination(session?.subscription, roles, watchPath);
   if (upsellDestination) redirect(upsellDestination);
 
-  const initialPlayback = isFreeYoutubeVideo(video)
-    ? buildCatalogPlayback(video)
-    : canWatch && session?.accessToken
-      ? await fetchPlaybackInfo(slug, session.accessToken)
-      : null;
+  let initialPlayback = null;
+  if (canWatch) {
+    if (isFreeYoutubeVideo(video)) {
+      initialPlayback = await fetchPlaybackInfo(slug);
+    } else if (session?.accessToken) {
+      initialPlayback = await fetchPlaybackInfo(slug, session.accessToken);
+    }
+  }
 
   return (
     <WatchClient

@@ -15,13 +15,18 @@ interface ApiError {
 
 export async function fetchPlaybackInfo(
   slug: string,
-  accessToken: string,
+  accessToken?: string | null,
 ): Promise<PlaybackInfo | null> {
   try {
+    const headers: Record<string, string> = {};
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
     const res = await fetch(
       `${getServerApiBase()}/streaming/play/${encodeURIComponent(slug)}`,
       {
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers,
         cache: "no-store",
       },
     );

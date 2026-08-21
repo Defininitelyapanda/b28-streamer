@@ -9,7 +9,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Overview", live: true },
   { href: "/users", label: "Users", permission: "users.read", live: true },
-  { href: "/filmmakers", label: "Filmmakers", permission: "films.read", live: false },
+  { href: "/filmmakers", label: "Filmmakers", permission: "films.read", live: true },
   { href: "/films", label: "Films", permission: "films.read", live: true },
   { href: "/moderation", label: "Content Moderation", permission: "comments.moderate", live: false },
   { href: "/subscriptions", label: "Subscriptions", permission: "payments.read", live: false },

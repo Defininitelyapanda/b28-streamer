@@ -52,12 +52,13 @@ export function detectSeriesGroup(title: string, videoId: string): string {
 }
 
 export function classifyVideo(
-  video: Pick<CatalogVideo, "title" | "desc" | "videoId"> & Partial<CatalogVideo>
+  video: Pick<CatalogVideo, "title" | "desc" | "id"> & Partial<CatalogVideo>,
 ): Pick<CatalogVideo, "type" | "genre" | "seriesGroup"> {
+  const key = video.videoId ?? video.id;
   return {
     type: video.type || detectVideoType(video.title),
-    genre: video.genre || detectGenre(video.title, video.desc, video.videoId),
-    seriesGroup: video.seriesGroup || detectSeriesGroup(video.title, video.videoId),
+    genre: video.genre || detectGenre(video.title, video.desc, key),
+    seriesGroup: video.seriesGroup || detectSeriesGroup(video.title, key),
   };
 }
 

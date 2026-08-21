@@ -75,11 +75,42 @@ describe('CatalogService', () => {
     expect(result.videos).toHaveLength(1);
     expect(result.videos[0].id).toBe('abc123');
     expect(result.videos[0].desc).toBe('');
+    expect(result.videos[0].videoId).toBe('abc123');
     expect(cache.set).toHaveBeenCalledWith(
       'catalog:list:1:100:all',
       expect.objectContaining({ total: 1 }),
       60,
     );
+  });
+
+  it('omits videoId from public list for premium titles', async () => {
+    (cache.get as jest.Mock).mockResolvedValue(null);
+    (prisma.catalogVideo.findMany as jest.Mock).mockResolvedValue([
+      {
+        slug: 'premium1',
+        title: 'Premium Film',
+        thumbnail: 'thumb.jpg',
+        date: '2026-01-01',
+        genre: 'Drama',
+        rating: '8.0',
+        sourceType: 'youtube',
+        videoId: 'premium1',
+        type: 'film',
+        seriesGroup: 'Premium Film',
+        accessTier: VideoAccessTier.PREMIUM,
+        playbackFormat: PlaybackFormat.YOUTUBE,
+        durationSeconds: null,
+        posterUrl: null,
+      },
+    ]);
+    (prisma.catalogVideo.count as jest.Mock).mockResolvedValue(1);
+    (prisma.catalogVideo.findFirst as jest.Mock).mockResolvedValue({
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    });
+
+    const result = await service.getPublicCatalog();
+
+    expect(result.videos[0].videoId).toBeUndefined();
   });
 
   it('throws when slug is missing or unpublished', async () => {

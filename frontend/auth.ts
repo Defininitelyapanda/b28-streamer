@@ -1,7 +1,8 @@
-import NextAuth from "next-auth";
+import NextAuth, { type User } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import type { SubscriptionInfo, UserMe } from "@/lib/api-client";
+import { AuthFlowError, type AuthErrorCode } from "@/lib/auth-errors";
 import { getAuthSecret, getServerApiBase } from "@/lib/server-api-base";
 
 function getAuthApiBase(): string {
@@ -18,19 +19,52 @@ interface ApiError {
   error: { code: string; message: string };
 }
 
+function mapBackendAuthCode(code: string | undefined): AuthErrorCode {
+  switch (code) {
+    case "EMAIL_NOT_VERIFIED":
+      return "email_not_verified";
+    case "ACCOUNT_LOCKED":
+      return "account_locked";
+    case "ACCOUNT_SUSPENDED":
+      return "account_suspended";
+    case "INVALID_CREDENTIALS":
+      return "invalid_credentials";
+    default:
+      return "invalid_credentials";
+  }
+}
+
 async function apiPost<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${getAuthApiBase()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+
+  if (res.status >= 500) {
+    throw new AuthFlowError(
+      "service_unavailable",
+      `API unreachable (${res.status}). Check B28_API_URL / NEXT_PUBLIC_API_URL.`,
+    );
+  }
+
   let json: ApiSuccess<T> | ApiError;
   try {
     json = (await res.json()) as ApiSuccess<T> | ApiError;
   } catch {
-    throw new Error(`API unreachable (${res.status}). Check B28_API_URL / NEXT_PUBLIC_API_URL.`);
+    throw new AuthFlowError(
+      "service_unavailable",
+      `API unreachable (${res.status}). Check B28_API_URL / NEXT_PUBLIC_API_URL.`,
+    );
   }
-  if (!json.success) throw new Error(json.error?.message ?? "Authentication failed.");
+
+  if (!json.success) {
+    throw new AuthFlowError(
+      mapBackendAuthCode(json.error?.code),
+      json.error?.message ?? "Authentication failed.",
+    );
+  }
+
   return json.data;
 }
 
@@ -136,30 +170,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         accessToken: { type: "text" },
         refreshToken: { type: "text" },
       },
-      authorize: async (credentials) => {
-        try {
-          if (credentials?.accessToken && credentials?.refreshToken) {
-            return await buildSessionUser({
-              accessToken: credentials.accessToken as string,
-              refreshToken: credentials.refreshToken as string,
-            });
-          }
-          if (credentials?.idToken) {
-            const payload = await apiPost<AuthSessionPayload>("/auth/google", {
-              idToken: credentials.idToken,
-            });
-            return await buildSessionUserFromPayload(payload);
-          }
-          if (credentials?.email && credentials?.password) {
-            const payload = await apiPost<AuthSessionPayload>("/auth/login", {
-              email: credentials.email,
-              password: credentials.password,
-            });
-            return await buildSessionUserFromPayload(payload);
-          }
-        } catch (error) {
-          console.error("[auth] credentials authorize failed:", error);
-          return null;
+      authorize: async (credentials): Promise<User | null> => {
+        if (credentials?.accessToken && credentials?.refreshToken) {
+          return await buildSessionUser({
+            accessToken: credentials.accessToken as string,
+            refreshToken: credentials.refreshToken as string,
+          });
+        }
+        if (credentials?.idToken) {
+          const payload = await apiPost<AuthSessionPayload>("/auth/google", {
+            idToken: credentials.idToken,
+          });
+          return await buildSessionUserFromPayload(payload);
+        }
+        if (credentials?.email && credentials?.password) {
+          const payload = await apiPost<AuthSessionPayload>("/auth/login", {
+            email: credentials.email,
+            password: credentials.password,
+          });
+          return await buildSessionUserFromPayload(payload);
         }
         return null;
       },

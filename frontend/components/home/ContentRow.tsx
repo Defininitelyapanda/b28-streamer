@@ -39,9 +39,9 @@ export default function ContentRowSection({ row, progressMap, onRemove }: Conten
           <VideoCard
             key={video.id}
             video={video}
-            showProgress={progressMap?.[video.videoId]}
+            showProgress={progressMap?.[video.id]}
             showRemove={isContinueRow}
-            onRemove={onRemove ? () => onRemove(video.videoId) : undefined}
+            onRemove={onRemove ? () => onRemove(video.id) : undefined}
           />
         ))}
       </div>

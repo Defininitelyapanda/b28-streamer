@@ -15,7 +15,7 @@ export interface CatalogVideo {
   desc: string;
   rating: string;
   sourceType: string;
-  videoId: string;
+  videoId?: string;
   type: VideoType;
   seriesGroup: string;
   accessTier?: VideoAccessTier;

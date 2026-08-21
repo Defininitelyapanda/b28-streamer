@@ -20,10 +20,14 @@
     "db:migrate": "npm run prisma:migrate:deploy --prefix backend",
     "db:seed": "npm run prisma:seed --prefix backend",
     "vercel:env": "powershell -ExecutionPolicy Bypass -File scripts/set-vercel-backend-env.ps1",
+    "vercel:login": "vercel login",
+    "vercel:link": "powershell -ExecutionPolicy Bypass -File scripts/vercel-link.ps1",
+    "vercel:deploy": "powershell -ExecutionPolicy Bypass -File scripts/vercel-deploy.ps1",
     "test:api": "npm test --prefix backend && npm run test:e2e --prefix backend",
     "status": "git status"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "concurrently": "^9.1.2",
+    "vercel": "^59.3.0"
   }
 }

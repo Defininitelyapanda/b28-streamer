@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Public } from '../common/decorators/auth.decorators';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { RequireStreamingAccess } from '../common/decorators/subscription.decorators';
@@ -11,46 +12,56 @@ import { StreamingService } from './streaming.service';
 @ApiTags('streaming')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, SubscriptionGuard)
-@RequireStreamingAccess()
 @Controller('api/v1/streaming')
 export class StreamingController {
   constructor(private streamingService: StreamingService) {}
 
+  @Public()
   @Get('play/:slug')
-  getPlayback(@CurrentUser() user: AuthenticatedUser, @Param('slug') slug: string) {
-    return this.streamingService.getPlaybackInfo(user.id, decodeURIComponent(slug));
+  getPlayback(
+    @CurrentUser() user: AuthenticatedUser | undefined,
+    @Param('slug') slug: string,
+  ) {
+    return this.streamingService.getPlaybackInfo(user?.id ?? null, decodeURIComponent(slug));
   }
 
+  @RequireStreamingAccess()
   @Get('continue-watching')
   getContinueWatching(@CurrentUser() user: AuthenticatedUser) {
     return this.streamingService.getContinueWatching(user.id);
   }
 
+  @RequireStreamingAccess()
   @Put('progress')
   upsertProgress(@CurrentUser() user: AuthenticatedUser, @Body() dto: UpsertProgressDto) {
     return this.streamingService.upsertProgress(user.id, dto);
   }
 
+  @RequireStreamingAccess()
   @Delete('progress/:videoSlug')
   removeProgress(@CurrentUser() user: AuthenticatedUser, @Param('videoSlug') videoSlug: string) {
     return this.streamingService.removeProgress(user.id, decodeURIComponent(videoSlug));
   }
 
+  @RequireStreamingAccess()
   @Get('watchlist')
   getWatchlist(@CurrentUser() user: AuthenticatedUser) {
     return this.streamingService.getWatchlist(user.id);
   }
 
+  @RequireStreamingAccess()
   @Post('watchlist')
   addToWatchlist(@CurrentUser() user: AuthenticatedUser, @Body() dto: WatchlistDto) {
     return this.streamingService.addToWatchlist(user.id, dto.videoSlug);
   }
 
+  @RequireStreamingAccess()
   @Post('watchlist/toggle')
   toggleWatchlist(@CurrentUser() user: AuthenticatedUser, @Body() dto: WatchlistDto) {
     return this.streamingService.toggleWatchlist(user.id, dto.videoSlug);
   }
 
+  @RequireStreamingAccess()
   @Delete('watchlist/:videoSlug')
   removeFromWatchlist(@CurrentUser() user: AuthenticatedUser, @Param('videoSlug') videoSlug: string) {
     return this.streamingService.removeFromWatchlist(user.id, decodeURIComponent(videoSlug));

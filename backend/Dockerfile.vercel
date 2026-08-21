@@ -12,6 +12,7 @@ RUN npx prisma generate
 
 COPY . .
 RUN npm run build
+RUN node scripts/vercel-postbuild.js || true
 
 FROM node:20-bookworm-slim AS dependencies
 WORKDIR /opt/backend
@@ -28,18 +29,17 @@ ENV NODE_ENV=production
 ENV VERCEL=1
 ENV PORT=80
 
+EXPOSE 80
+
 COPY --from=dependencies /opt/backend/node_modules ./node_modules
 COPY --from=build /opt/backend/dist ./dist
 COPY --from=build /opt/backend/prisma ./prisma
 COPY --from=build /opt/backend/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /opt/backend/node_modules/@prisma ./node_modules/@prisma
+COPY --from=build /opt/backend/node_modules/prisma ./node_modules/prisma
 COPY package.json package-lock.json* ./
-
-COPY docker-start.js /usr/local/bin/docker-start.js
+COPY docker-start.js ./docker-start.js
 RUN cp dist/src/main.js dist/src/main.cjs \
-  && node -e "JSON.parse(require('fs').readFileSync('package.json','utf8'))" \
-  && chown -R node:node /opt/backend \
-  && chown node:node /usr/local/bin/docker-start.js
+  && node -e "JSON.parse(require('fs').readFileSync('package.json','utf8'))"
 
-USER node
-CMD ["/usr/local/bin/node", "/usr/local/bin/docker-start.js"]
+CMD ["node", "docker-start.js"]

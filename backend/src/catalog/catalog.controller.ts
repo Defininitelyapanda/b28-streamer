@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Header, Headers, Param, Patch, Post, Put, Query, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Header, Headers, Param, Patch, Post, Put, Query, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Public, RequirePermissions } from '../common/decorators/auth.decorators';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -75,7 +75,21 @@ export class AdminCatalogController {
   @RequirePermissions('films.approve')
   @Post('upload-url')
   presignUpload(@Body() dto: PresignUploadDto) {
-    const key = `films/${dto.slug}/${Date.now()}.mp4`;
+    const allowedTypes = new Set([
+      'video/mp4',
+      'application/octet-stream',
+      'application/x-mpegURL',
+      'application/vnd.apple.mpegurl',
+    ]);
+    if (!allowedTypes.has(dto.contentType)) {
+      throw new BadRequestException({
+        code: 'INVALID_CONTENT_TYPE',
+        message: 'Only MP4 or HLS content types are allowed for upload.',
+      });
+    }
+
+    const extension = dto.contentType.includes('mpeg') ? 'm3u8' : 'mp4';
+    const key = `films/${dto.slug}/${Date.now()}.${extension}`;
     return this.r2Storage.getPresignedUploadUrl(key, dto.contentType);
   }
 

@@ -13,7 +13,7 @@ export interface CatalogVideoDto {
   desc: string;
   rating: string;
   sourceType: string;
-  videoId: string;
+  videoId?: string;
   type: string;
   seriesGroup: string;
   accessTier: VideoAccessTier;
@@ -200,13 +200,64 @@ export class CatalogService {
   }
 
   async bulkUpsert(items: UpsertCatalogVideoDto[]) {
+    const chunkSize = 25;
     let count = 0;
-    for (const item of items) {
-      await this.upsertWithoutInvalidation(item);
-      count++;
+
+    for (let i = 0; i < items.length; i += chunkSize) {
+      const chunk = items.slice(i, i + chunkSize);
+      await this.prisma.$transaction(
+        chunk.map((item) =>
+          this.prisma.catalogVideo.upsert({
+            where: { slug: item.slug },
+            create: this.buildCreateData(item),
+            update: this.buildFullUpdateData(item),
+          }),
+        ),
+      );
+      count += chunk.length;
     }
+
     await this.cache.invalidateCatalog();
     return { count, syncedAt: new Date().toISOString() };
+  }
+
+  async bulkUpsertFromYoutube(items: UpsertCatalogVideoDto[]) {
+    const chunkSize = 25;
+    let count = 0;
+
+    for (let i = 0; i < items.length; i += chunkSize) {
+      const chunk = items.slice(i, i + chunkSize);
+      await this.prisma.$transaction(
+        chunk.map((item) =>
+          this.prisma.catalogVideo.upsert({
+            where: { slug: item.slug },
+            create: this.buildCreateData(item),
+            update: this.buildYoutubeSyncUpdateData(item),
+          }),
+        ),
+      );
+      count += chunk.length;
+    }
+
+    await this.cache.invalidateCatalog();
+    return { count, syncedAt: new Date().toISOString() };
+  }
+
+  async unpublishStaleYoutubeVideos(activeSlugs: string[]) {
+    const result = await this.prisma.catalogVideo.updateMany({
+      where: {
+        sourceType: 'youtube',
+        published: true,
+        slug: { notIn: activeSlugs },
+      },
+      data: { published: false },
+    });
+
+    if (result.count > 0) {
+      await this.cache.invalidateCatalog();
+    }
+
+    return result.count;
   }
 
   async update(slug: string, dto: UpdateCatalogVideoDto) {
@@ -252,51 +303,76 @@ export class CatalogService {
     }
   }
 
-  private async upsertWithoutInvalidation(dto: UpsertCatalogVideoDto) {
-    await this.prisma.catalogVideo.upsert({
-      where: { slug: dto.slug },
-      create: {
-        slug: dto.slug,
-        title: dto.title,
-        thumbnail: dto.thumbnail,
-        date: dto.date,
-        genre: dto.genre,
-        description: dto.description,
-        rating: dto.rating,
-        sourceType: dto.sourceType,
-        videoId: dto.videoId,
-        type: dto.type,
-        seriesGroup: dto.seriesGroup,
-        accessTier: dto.accessTier ?? VideoAccessTier.FREE,
-        playbackFormat: dto.playbackFormat ?? PlaybackFormat.YOUTUBE,
-        storageKey: dto.storageKey ?? null,
-        durationSeconds: dto.durationSeconds ?? null,
-        posterUrl: dto.posterUrl ?? null,
-        published: dto.published ?? true,
-      },
-      update: {
-        title: dto.title,
-        thumbnail: dto.thumbnail,
-        date: dto.date,
-        genre: dto.genre,
-        description: dto.description,
-        rating: dto.rating,
-        sourceType: dto.sourceType,
-        videoId: dto.videoId,
-        type: dto.type,
-        seriesGroup: dto.seriesGroup,
-        accessTier: dto.accessTier ?? VideoAccessTier.FREE,
-        playbackFormat: dto.playbackFormat ?? PlaybackFormat.YOUTUBE,
-        storageKey: dto.storageKey ?? null,
-        durationSeconds: dto.durationSeconds ?? null,
-        posterUrl: dto.posterUrl ?? null,
-        published: dto.published ?? true,
-      },
-    });
+  private buildCreateData(dto: UpsertCatalogVideoDto): Prisma.CatalogVideoCreateInput {
+    return {
+      slug: dto.slug,
+      title: dto.title,
+      thumbnail: dto.thumbnail,
+      date: dto.date,
+      genre: dto.genre,
+      description: dto.description,
+      rating: dto.rating,
+      sourceType: dto.sourceType,
+      videoId: dto.videoId,
+      type: dto.type,
+      seriesGroup: dto.seriesGroup,
+      accessTier: dto.accessTier ?? VideoAccessTier.FREE,
+      playbackFormat: dto.playbackFormat ?? PlaybackFormat.YOUTUBE,
+      storageKey: dto.storageKey ?? null,
+      durationSeconds: dto.durationSeconds ?? null,
+      posterUrl: dto.posterUrl ?? null,
+      published: dto.published ?? true,
+    };
+  }
+
+  private buildFullUpdateData(dto: UpsertCatalogVideoDto): Prisma.CatalogVideoUpdateInput {
+    return {
+      title: dto.title,
+      thumbnail: dto.thumbnail,
+      date: dto.date,
+      genre: dto.genre,
+      description: dto.description,
+      rating: dto.rating,
+      sourceType: dto.sourceType,
+      videoId: dto.videoId,
+      type: dto.type,
+      seriesGroup: dto.seriesGroup,
+      accessTier: dto.accessTier ?? VideoAccessTier.FREE,
+      playbackFormat: dto.playbackFormat ?? PlaybackFormat.YOUTUBE,
+      storageKey: dto.storageKey ?? null,
+      durationSeconds: dto.durationSeconds ?? null,
+      posterUrl: dto.posterUrl ?? null,
+      published: dto.published ?? true,
+    };
+  }
+
+  private buildYoutubeSyncUpdateData(dto: UpsertCatalogVideoDto): Prisma.CatalogVideoUpdateInput {
+    return {
+      title: dto.title,
+      thumbnail: dto.thumbnail,
+      date: dto.date,
+      description: dto.description,
+      rating: dto.rating,
+      sourceType: dto.sourceType,
+      videoId: dto.videoId,
+      type: dto.type,
+      seriesGroup: dto.seriesGroup,
+      durationSeconds: dto.durationSeconds ?? undefined,
+      published: true,
+    };
+  }
+
+  private shouldExposeVideoId(v: {
+    accessTier: VideoAccessTier;
+    playbackFormat: PlaybackFormat;
+  }): boolean {
+    return (
+      v.accessTier === VideoAccessTier.FREE && v.playbackFormat === PlaybackFormat.YOUTUBE
+    );
   }
 
   private toListDto(v: CatalogListRecord): CatalogVideoDto {
-    return {
+    const dto: CatalogVideoDto = {
       id: v.slug,
       title: v.title,
       thumbnail: v.posterUrl ?? v.thumbnail,
@@ -305,7 +381,6 @@ export class CatalogService {
       desc: '',
       rating: v.rating,
       sourceType: v.sourceType,
-      videoId: v.videoId,
       type: v.type,
       seriesGroup: v.seriesGroup,
       accessTier: v.accessTier,
@@ -313,6 +388,12 @@ export class CatalogService {
       durationSeconds: v.durationSeconds,
       posterUrl: v.posterUrl,
     };
+
+    if (this.shouldExposeVideoId(v)) {
+      dto.videoId = v.videoId;
+    }
+
+    return dto;
   }
 
   private toDto(v: {
@@ -332,7 +413,7 @@ export class CatalogService {
     durationSeconds: number | null;
     posterUrl: string | null;
   }): CatalogVideoDto {
-    return {
+    const dto: CatalogVideoDto = {
       id: v.slug,
       title: v.title,
       thumbnail: v.posterUrl ?? v.thumbnail,
@@ -341,7 +422,6 @@ export class CatalogService {
       desc: v.description,
       rating: v.rating,
       sourceType: v.sourceType,
-      videoId: v.videoId,
       type: v.type,
       seriesGroup: v.seriesGroup,
       accessTier: v.accessTier,
@@ -349,6 +429,12 @@ export class CatalogService {
       durationSeconds: v.durationSeconds,
       posterUrl: v.posterUrl,
     };
+
+    if (this.shouldExposeVideoId(v)) {
+      dto.videoId = v.videoId;
+    }
+
+    return dto;
   }
 
   private toAdminDto(v: {

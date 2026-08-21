@@ -40,7 +40,7 @@ export default function Hero({ video }: HeroProps) {
             </svg>
             Watch Now
           </WatchLink>
-          <WatchlistButton videoId={video.videoId} />
+          <WatchlistButton videoId={video.id} />
         </div>
       </div>
     </section>

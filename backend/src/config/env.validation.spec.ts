@@ -1,5 +1,30 @@
 import { assertProductionSafeEnv, envValidationSchema } from './env.validation';
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { getMigrationDatabaseUrl } = require('../../scripts/migration-database-url') as {
+  getMigrationDatabaseUrl: (env?: NodeJS.ProcessEnv) => string | null;
+};
+
+describe('getMigrationDatabaseUrl', () => {
+  it('prefers DATABASE_URL_UNPOOLED', () => {
+    expect(
+      getMigrationDatabaseUrl({
+        DATABASE_URL: 'postgresql://pooled',
+        DATABASE_URL_UNPOOLED: 'postgresql://direct',
+      }),
+    ).toBe('postgresql://direct');
+  });
+
+  it('strips Neon pooler host suffix from DATABASE_URL', () => {
+    const url = getMigrationDatabaseUrl({
+      DATABASE_URL:
+        'postgresql://user:pass@ep-cool-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require',
+    });
+    expect(url).toContain('ep-cool.us-east-1.aws.neon.tech');
+    expect(url).not.toContain('-pooler');
+  });
+});
+
 describe('envValidationSchema', () => {
   it('accepts Resend-style EMAIL_FROM with display name', () => {
     const { error } = envValidationSchema.validate({

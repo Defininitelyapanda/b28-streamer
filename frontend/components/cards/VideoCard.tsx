@@ -38,7 +38,7 @@ export default function VideoCard({ video, showProgress, showRemove, onRemove }:
           e.stopPropagation();
         }}
       >
-        <WatchlistButton videoId={video.videoId} compact />
+        <WatchlistButton videoId={video.id} compact />
       </div>
       <WatchLink slug={video.id} className="block">
         <div className="relative aspect-[2/3] overflow-hidden bg-[#0b0d12]">

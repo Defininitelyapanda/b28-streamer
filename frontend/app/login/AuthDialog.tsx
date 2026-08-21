@@ -8,6 +8,7 @@ import {
   resolvePostAuthRedirect,
   type Persona,
 } from "@/app/login/login-utils";
+import { mapAuthErrorToMessage } from "@/lib/auth-errors";
 import { hasFilmmakerAccess } from "@/lib/streaming-access";
 import { useAutofillField } from "@/app/login/useAutofillField";
 
@@ -159,10 +160,8 @@ export default function AuthDialog({
       if (result?.error) {
         if (result.error === "Configuration") {
           setError("Auth is misconfigured. Set AUTH_SECRET in your environment.");
-        } else if (result.error === "CredentialsSignin") {
-          setError("Invalid email or password.");
         } else {
-          setError("Sign in failed. The API may be unavailable — try again in a moment.");
+          setError(mapAuthErrorToMessage(result.code ?? result.error));
         }
         return;
       }

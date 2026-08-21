@@ -72,7 +72,7 @@ export default function FeaturedCarousel({ videos }: FeaturedCarouselProps) {
             </svg>
             Watch Now
           </WatchLink>
-          <WatchlistButton key={current.videoId} videoId={current.videoId} />
+          <WatchlistButton key={current.id} videoId={current.id} />
         </div>
       </div>
 

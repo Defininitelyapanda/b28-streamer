@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import type { CatalogVideo, PlaybackInfo } from "@/lib/types";
@@ -10,11 +10,7 @@ import RelatedList from "@/components/player/RelatedList";
 import WatchlistButton from "@/components/cards/WatchlistButton";
 import { addToHistory, getProgressMap, saveProgress } from "@/lib/watchHistory";
 import { useAuth } from "@/lib/auth-context";
-import {
-  buildCatalogPlayback,
-  canWatchVideo,
-  isFreeYoutubeVideo,
-} from "@/lib/streaming-access";
+import { canWatchVideo, isFreeYoutubeVideo } from "@/lib/streaming-access";
 import { getPlaybackInfo } from "@/lib/api-client";
 
 interface WatchClientProps {
@@ -34,17 +30,13 @@ export default function WatchClient({
   const { data: session, status: sessionStatus } = useSession();
   const roles = user?.roles ?? [];
   const accessToken = session?.accessToken;
-  const catalogPlayback = useMemo(
-    () => (isFreeYoutubeVideo(video) ? buildCatalogPlayback(video) : null),
-    [video],
-  );
+  const isFreeYoutube = isFreeYoutubeVideo(video);
+
   const [startSeconds, setStartSeconds] = useState(0);
   const [playbackError, setPlaybackError] = useState("");
-  const [playback, setPlayback] = useState<PlaybackInfo | null>(
-    initialPlayback ?? catalogPlayback,
-  );
+  const [playback, setPlayback] = useState<PlaybackInfo | null>(initialPlayback);
   const [loadingPlayback, setLoadingPlayback] = useState(
-    canWatchFromServer && !initialPlayback && !catalogPlayback,
+    canWatchFromServer && !initialPlayback,
   );
 
   const slug = video.id;
@@ -52,24 +44,16 @@ export default function WatchClient({
   const posterUrl = video.posterUrl ?? video.thumbnail;
 
   const canWatchNow =
-    canWatchFromServer ||
-    canWatchVideo(video, subscription, roles) ||
-    Boolean(catalogPlayback);
+    canWatchFromServer || canWatchVideo(video, subscription, roles);
   const needsUpsell = !canWatchNow && !authLoading && sessionStatus !== "loading";
   const needsSignIn =
     canWatchNow &&
-    !catalogPlayback &&
+    !isFreeYoutube &&
     !authLoading &&
     sessionStatus === "unauthenticated";
   const showPlayer = canWatchNow && !loadingPlayback && !playbackError && playback !== null;
 
   useEffect(() => {
-    if (catalogPlayback) {
-      setPlayback(catalogPlayback);
-      setLoadingPlayback(false);
-      return;
-    }
-
     if (initialPlayback) {
       setPlayback(initialPlayback);
       setLoadingPlayback(false);
@@ -81,11 +65,11 @@ export default function WatchClient({
       return;
     }
 
-    if (sessionStatus === "loading" || authLoading) {
+    if (!isFreeYoutube && (sessionStatus === "loading" || authLoading)) {
       return;
     }
 
-    if (!accessToken) {
+    if (!isFreeYoutube && !accessToken) {
       setPlayback(null);
       setPlaybackError("signin");
       setLoadingPlayback(false);
@@ -95,7 +79,7 @@ export default function WatchClient({
     setLoadingPlayback(true);
     setPlaybackError("");
 
-    getPlaybackInfo(slug, accessToken)
+    getPlaybackInfo(slug, isFreeYoutube ? null : accessToken)
       .then(setPlayback)
       .catch((err) => {
         const message = err instanceof Error ? err.message : "Playback unavailable";
@@ -115,10 +99,10 @@ export default function WatchClient({
     slug,
     canWatchNow,
     initialPlayback,
-    catalogPlayback,
     accessToken,
     sessionStatus,
     authLoading,
+    isFreeYoutube,
   ]);
 
   useEffect(() => {

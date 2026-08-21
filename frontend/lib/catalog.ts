@@ -7,13 +7,22 @@ import { SEED_CATALOG } from "@/lib/seed-catalog";
 import { getServerApiBase } from "@/lib/server-api-base";
 import type { CatalogData, CatalogVideo } from "@/lib/types";
 
-declare global {
-  // eslint-disable-next-line no-var
-  var __b28CatalogCache: CatalogData | undefined;
-}
-
 const API_BASE = getServerApiBase();
 const CATALOG_REVALIDATE = Number(process.env.CATALOG_REVALIDATE_SECONDS ?? "60");
+
+export interface CatalogPageQuery {
+  page?: number;
+  limit?: number;
+  genre?: string;
+}
+
+function isProductionDeploy(): boolean {
+  return process.env.NODE_ENV === "production" && process.env.VERCEL === "1";
+}
+
+function allowSeedFallback(): boolean {
+  return process.env.ALLOW_SEED_FALLBACK === "true" || !isProductionDeploy();
+}
 
 function defaultCatalog(): CatalogData {
   return {
@@ -21,6 +30,24 @@ function defaultCatalog(): CatalogData {
     syncedAt: null,
     source: "built-in seed",
   };
+}
+
+function unavailableCatalog(): CatalogData {
+  console.warn(`[catalog] API unavailable at ${API_BASE}`);
+  return {
+    videos: [],
+    syncedAt: null,
+    source: "unavailable",
+  };
+}
+
+function buildCatalogQuery(params: CatalogPageQuery = {}): string {
+  const search = new URLSearchParams();
+  if (params.page) search.set("page", String(params.page));
+  if (params.limit) search.set("limit", String(params.limit));
+  if (params.genre && params.genre !== "All") search.set("genre", params.genre);
+  const qs = search.toString();
+  return qs ? `?${qs}` : "";
 }
 
 export function normalizeMovie(
@@ -35,7 +62,9 @@ export function normalizeMovie(
   );
   const date = String(item.date || item.year || item.release_date || "2026").slice(0, 10);
   const rating = String(item.rating || item.score || (Math.random() * 2 + 7).toFixed(1));
-  const videoId = String(item.videoId || item.youtubeId || item.source_id || item.embedId || id);
+  const videoId = item.videoId
+    ? String(item.videoId)
+    : String(item.youtubeId || item.source_id || item.embedId || id);
   const thumbnail =
     String(item.thumbnail || item.poster || item.image || item.cover) ||
     `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
@@ -62,15 +91,20 @@ export function normalizeMovie(
   };
 }
 
-async function fetchCatalogFromApi(): Promise<CatalogData | null> {
+async function fetchCatalogFromApi(params: CatalogPageQuery = {}): Promise<CatalogData | null> {
   try {
-    const res = await fetch(`${API_BASE}/catalog`, {
+    const res = await fetch(`${API_BASE}/catalog${buildCatalogQuery(params)}`, {
       next: { revalidate: CATALOG_REVALIDATE },
     });
     if (!res.ok) return null;
     const json = (await res.json()) as { success?: boolean; data?: CatalogData };
     if (json.success && json.data) {
-      return json.data;
+      return {
+        ...json.data,
+        videos: json.data.videos.map((item, index) =>
+          normalizeMovie(item as Partial<CatalogVideo> & Record<string, unknown>, index),
+        ),
+      };
     }
     if (!json.success && (json as CatalogData).videos) {
       return json as CatalogData;
@@ -101,6 +135,18 @@ async function resolveFallbackVideos(): Promise<CatalogVideo[]> {
   const local = await loadLocalCatalog();
   if (local?.videos.length) return local.videos;
   return defaultCatalog().videos;
+}
+
+async function resolveCatalog(params: CatalogPageQuery = {}): Promise<CatalogData> {
+  const fromApi = await fetchCatalogFromApi(params);
+  if (fromApi) return fromApi;
+
+  if (!allowSeedFallback()) return unavailableCatalog();
+
+  const local = await loadLocalCatalog();
+  if (local) return local;
+
+  return defaultCatalog();
 }
 
 async function fetchVideoBySlugFromApi(slug: string): Promise<CatalogVideo | null> {
@@ -147,6 +193,8 @@ async function fetchVideoBySlug(slug: string): Promise<CatalogVideo | null> {
   const fromApi = await fetchVideoBySlugFromApi(slug);
   if (fromApi) return fromApi;
 
+  if (!allowSeedFallback()) return null;
+
   const videos = await resolveFallbackVideos();
   return getVideoById(videos, slug) ?? null;
 }
@@ -159,27 +207,24 @@ async function fetchRelatedBySlug(
   const fromApi = await fetchRelatedBySlugFromApi(slug, limit);
   if (fromApi !== null) return fromApi;
 
+  if (!allowSeedFallback()) return [];
+
   const videos = await resolveFallbackVideos();
   return getRelatedVideos(videos, video, limit);
 }
 
 export const getCatalog = cache(async function getCatalog(): Promise<CatalogData> {
-  if (globalThis.__b28CatalogCache && process.env.NODE_ENV === "production") {
-    return globalThis.__b28CatalogCache;
-  }
+  return resolveCatalog({ limit: 24 });
+});
 
-  const fromApi = await fetchCatalogFromApi();
-  if (fromApi) {
-    globalThis.__b28CatalogCache = fromApi;
-    return fromApi;
-  }
-
-  const local = await loadLocalCatalog();
-  if (local) {
-    return local;
-  }
-
-  return defaultCatalog();
+export const getCatalogPage = cache(async function getCatalogPage(
+  params: CatalogPageQuery = {},
+): Promise<CatalogData> {
+  return resolveCatalog({
+    page: params.page ?? 1,
+    limit: params.limit ?? 24,
+    genre: params.genre,
+  });
 });
 
 export const getWatchPageData = cache(async function getWatchPageData(slug: string) {
@@ -191,9 +236,11 @@ export const getWatchPageData = cache(async function getWatchPageData(slug: stri
   return { video, related, session };
 });
 
-export async function saveCatalog(catalog: CatalogData): Promise<void> {
-  globalThis.__b28CatalogCache = catalog;
+export function isCatalogUnavailable(catalog: CatalogData): boolean {
+  return catalog.source === "unavailable";
+}
 
+export async function saveCatalog(catalog: CatalogData): Promise<void> {
   if (process.env.VERCEL === "1") {
     return;
   }

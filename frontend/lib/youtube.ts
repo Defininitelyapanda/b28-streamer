@@ -105,7 +105,7 @@ export async function fetchVideoDetails(videoIds: string[]): Promise<CatalogVide
         snippet?.thumbnails?.medium?.url ||
         `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 
-      const classification = classifyVideo({ title, desc, videoId });
+      const classification = classifyVideo({ id: videoId, title, desc, videoId });
 
       videos.push({
         id: videoId,

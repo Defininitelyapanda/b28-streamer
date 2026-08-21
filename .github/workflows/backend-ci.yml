@@ -75,3 +75,7 @@ jobs:
       - name: E2E tests
         working-directory: backend
         run: npm run test:e2e
+
+      - name: Docker build smoke
+        working-directory: backend
+        run: docker build -f Dockerfile.vercel -t b28-backend-smoke .

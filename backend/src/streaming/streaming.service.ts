@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PlaybackFormat, VideoAccessTier } from '@prisma/client';
 import { CatalogService } from '../catalog/catalog.service';
 import { R2StorageService } from '../storage/r2-storage.service';
@@ -24,14 +29,27 @@ export class StreamingService {
     private r2Storage: R2StorageService,
   ) {}
 
-  async getPlaybackInfo(userId: string, slug: string): Promise<PlaybackInfo> {
+  async getPlaybackInfo(userId: string | null, slug: string): Promise<PlaybackInfo> {
     const video = await this.catalogService.findBySlug(slug);
 
-    if (!(await this.subscriptionsService.canStream(userId))) {
-      throw new ForbiddenException({
-        code: 'SUBSCRIPTION_REQUIRED',
-        message: 'An active subscription is required to stream.',
-      });
+    const isFreeYoutube =
+      video.accessTier === VideoAccessTier.FREE &&
+      video.playbackFormat === PlaybackFormat.YOUTUBE;
+
+    if (!isFreeYoutube) {
+      if (!userId) {
+        throw new UnauthorizedException({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required.',
+        });
+      }
+
+      if (!(await this.subscriptionsService.canStream(userId))) {
+        throw new ForbiddenException({
+          code: 'SUBSCRIPTION_REQUIRED',
+          message: 'An active subscription is required to stream.',
+        });
+      }
     }
 
     if (video.playbackFormat === PlaybackFormat.YOUTUBE) {
@@ -81,7 +99,9 @@ export class StreamingService {
         videoSlug: dto.videoSlug,
         progressSeconds: dto.progressSeconds,
       },
-      update: { progressSeconds: dto.progressSeconds },
+      update: {
+        progressSeconds: dto.progressSeconds,
+      },
     });
     return {
       videoSlug: row.videoSlug,
@@ -91,14 +111,10 @@ export class StreamingService {
   }
 
   async removeProgress(userId: string, videoSlug: string) {
-    try {
-      await this.prisma.watchProgress.delete({
-        where: { userId_videoSlug: { userId, videoSlug } },
-      });
-    } catch {
-      throw new NotFoundException({ code: 'PROGRESS_NOT_FOUND', message: 'Continue watching entry not found.' });
-    }
-    return { message: 'Removed from continue watching.' };
+    await this.prisma.watchProgress.deleteMany({
+      where: { userId, videoSlug },
+    });
+    return { message: 'Progress removed.' };
   }
 
   async getWatchlist(userId: string) {
@@ -118,18 +134,7 @@ export class StreamingService {
       create: { userId, videoSlug },
       update: {},
     });
-    return { videoSlug, saved: true };
-  }
-
-  async removeFromWatchlist(userId: string, videoSlug: string) {
-    try {
-      await this.prisma.watchlistItem.delete({
-        where: { userId_videoSlug: { userId, videoSlug } },
-      });
-    } catch {
-      throw new NotFoundException({ code: 'WATCHLIST_NOT_FOUND', message: 'Watchlist item not found.' });
-    }
-    return { message: 'Removed from watch later.' };
+    return { message: 'Added to watchlist.' };
   }
 
   async toggleWatchlist(userId: string, videoSlug: string) {
@@ -140,9 +145,16 @@ export class StreamingService {
       await this.prisma.watchlistItem.delete({
         where: { userId_videoSlug: { userId, videoSlug } },
       });
-      return { videoSlug, saved: false };
+      return { added: false };
     }
     await this.prisma.watchlistItem.create({ data: { userId, videoSlug } });
-    return { videoSlug, saved: true };
+    return { added: true };
+  }
+
+  async removeFromWatchlist(userId: string, videoSlug: string) {
+    await this.prisma.watchlistItem.deleteMany({
+      where: { userId, videoSlug },
+    });
+    return { message: 'Removed from watchlist.' };
   }
 }
