@@ -23,6 +23,9 @@
     "vercel:login": "vercel login",
     "vercel:link": "powershell -ExecutionPolicy Bypass -File scripts/vercel-link.ps1",
     "vercel:deploy": "powershell -ExecutionPolicy Bypass -File scripts/vercel-deploy.ps1",
+    "vercel:youtube": "powershell -ExecutionPolicy Bypass -File scripts/set-vercel-youtube-env.ps1",
+    "vercel:r2": "powershell -ExecutionPolicy Bypass -File scripts/set-vercel-r2-env.ps1",
+    "vercel:dashboard": "powershell -ExecutionPolicy Bypass -File scripts/vercel-dashboard-deploy.ps1",
     "test:api": "npm test --prefix backend && npm run test:e2e --prefix backend",
     "status": "git status"
   },
